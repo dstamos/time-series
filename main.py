@@ -1,12 +1,8 @@
-import numpy as np
 from src.data_management import DataHandler, Settings
-from src.training_sarimax import Sarimax
-import time
+from src.training import Sarimax
 
 
 def main():
-    tt = time.time()
-
     data_settings = {'dataset': 'AirQualityUCI',
                      'label': 'CO(GT)',
                      'horizon': 24,
@@ -33,6 +29,7 @@ def main():
     plt.plot(model.prediction, 'tab:red')
 
     plt.pause(0.1)
+    plt.show()
 
     k = 1
 
@@ -46,6 +43,12 @@ def main():
     # f.close()
 
     # results = pickle.load(open('results/' + str(settings.data.dataset) + '.pckl', "rb"))
+
+    # TODO Try SARIMAX without diff on indicators
+    # TODO xgboost for prediction
+    # TODO Add one-hot encoding of hourly time features for xgboost and don't lag them
+    # TODO NBeats for prediction
+    # TODO Rework all classes in training.py to match the "model" superclass in pytorch
 
 
 if __name__ == "__main__":
