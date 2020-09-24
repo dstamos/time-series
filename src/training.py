@@ -4,6 +4,14 @@ import xgboost
 import multiprocess as mp
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
+from torch.utils.data import DataLoader, TensorDataset
+from torch import tensor
+from src.utilities import lag_features, prune_data
+from src.nbeats_theirs.model import NBeatsNet
+import torch
+from torch import optim
+from torch.nn import functional as F
+
 
 class Sarimax:
     def __init__(self, settings):
@@ -133,3 +141,79 @@ class Xgboost:
             return features, labels
         else:
             return features
+
+
+class NBeats:
+    def __init__(self, settings):
+        import torch
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.settings = settings
+        self.forecast_length = settings.training.forecast_length
+        self.lookback_length = settings.training.lookback_length
+
+        self.model = None
+        self.prediction = None
+
+    def fit(self, data):
+        if self.settings.training.use_exog is True:
+            features_tr = lag_features(data.features_tr.multioutput, self.lookback_length)
+            features_tr, labels_tr = prune_data(features_tr, data.labels_tr.multioutput)
+        else:
+            raise ValueError('Featureless nbeats not implemented.')
+
+        dataset = TensorDataset(tensor(features_tr.values), tensor(labels_tr.values))
+        trainloader = DataLoader(dataset, shuffle=True, batch_size=self.settings.training.batch_size)
+
+        print('--- Model ---')
+        net = NBeatsNet(device=self.device,
+                        stack_types=[NBeatsNet.TREND_BLOCK, NBeatsNet.SEASONALITY_BLOCK, NBeatsNet.GENERIC_BLOCK],
+                        forecast_length=self.forecast_length,
+                        thetas_dims=[2, 8, 3],
+                        nb_blocks_per_stack=3,
+                        backcast_length=self.lookback_length,
+                        hidden_layer_units=64,  # 1024
+                        share_weights_in_stack=False,
+                        nb_harmonics=None)
+
+        optimiser = optim.Adam(net.parameters())
+
+        max_grad_steps = 10000
+
+        initial_grad_step = 0
+        max_epochs = 1
+        losses = []
+        for epoch in range(max_epochs):
+            for grad_step, (x, target) in enumerate(trainloader):
+                grad_step += initial_grad_step
+                optimiser.zero_grad()
+                net.train()
+                backcast, forecast = net(torch.tensor(x, dtype=torch.float).to(self.device))
+                loss = F.mse_loss(forecast, torch.tensor(target, dtype=torch.float).to(self.device))
+                loss.backward()
+                optimiser.step()
+                print(f'grad_step = {str(grad_step).zfill(6)}, loss = {loss.item():.6f}')
+                losses.append(loss)
+                # if grad_step % 1000 == 0 or (grad_step < 1000 and grad_step % 100 == 0):
+                #     with torch.no_grad():
+                #         save(net, optimiser, grad_step)
+                #         if on_save_callback is not None:
+                #             on_save_callback(x, target, grad_step)
+                if grad_step > max_grad_steps:
+                    print('Finished.')
+                    break
+            print(epoch, 'done')
+
+        self.model = net
+
+    def forecast(self, data, period=1):
+        if self.settings.training.use_exog is True:
+            features_ts = lag_features(data.features_ts.multioutput, self.lookback_length)
+            features_ts, labels_ts = prune_data(features_ts, data.labels_ts.multioutput)
+        else:
+            raise ValueError('Featureless xgboost not implemented.')
+
+        torch.no_grad()
+        _, forecast = self.model(torch.tensor(features_ts.values, dtype=torch.float).to(self.device))
+        import pandas as pd
+        import numpy as np
+        self.prediction = pd.DataFrame([np.array(forecast[i].data[0]) for i in range(len(forecast))], index=features_ts.index)

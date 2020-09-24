@@ -54,6 +54,9 @@ def main():
 
     # results = pickle.load(open('results/' + str(settings.data.dataset) + '.pckl', "rb"))
 
+    # TODO Train on a few epochs and see predictions
+    # TODO Rework the NBeats strucutre, move stuff inside src etc
+
     # TODO Try SARIMAX without diff on indicators
     # TODO Try predicting the average co2 of the rolling 8 hours
     # TODO xgboost for prediction
@@ -68,6 +71,8 @@ def main():
     # TODO Multivariate NBEATS
 
     # TODO Read NBEATS experiments metalearning
+
+    # Implement https://github.com/philipperemy/n-beats https://github.com/philipperemy/n-beats ( simpler )
 
 
 if __name__ == "__main__":
