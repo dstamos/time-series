@@ -7,7 +7,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from torch.utils.data import DataLoader, TensorDataset
 from torch import tensor
 from src.utilities import lag_features, prune_data
-from src.nbeats_theirs.model import NBeatsNet
+from src.nbeats.model import NBeatsNet
 import torch
 from torch import optim
 from torch.nn import functional as F
@@ -161,7 +161,7 @@ class NBeats:
         else:
             raise ValueError('Featureless nbeats not implemented.')
 
-        dataset = TensorDataset(tensor(features_tr.values), tensor(labels_tr.values))
+        dataset = TensorDataset(tensor(features_tr.values, dtype=torch.float), tensor(labels_tr.values, dtype=torch.float))
         trainloader = DataLoader(dataset, shuffle=True, batch_size=self.settings.training.batch_size)
 
         print('--- Model ---')
@@ -187,8 +187,8 @@ class NBeats:
                 grad_step += initial_grad_step
                 optimiser.zero_grad()
                 net.train()
-                backcast, forecast = net(torch.tensor(x, dtype=torch.float).to(self.device))
-                loss = F.mse_loss(forecast, torch.tensor(target, dtype=torch.float).to(self.device))
+                backcast, forecast = net(x.to(self.device))
+                loss = F.mse_loss(forecast, target.to(self.device))
                 loss.backward()
                 optimiser.step()
                 print(f'grad_step = {str(grad_step).zfill(6)}, loss = {loss.item():.6f}')
@@ -208,12 +208,10 @@ class NBeats:
     def forecast(self, data, period=1):
         if self.settings.training.use_exog is True:
             features_ts = lag_features(data.features_ts.multioutput, self.lookback_length)
-            features_ts, labels_ts = prune_data(features_ts, data.labels_ts.multioutput)
+            features_ts = prune_data(features_ts)
         else:
-            raise ValueError('Featureless xgboost not implemented.')
+            raise ValueError('Featureless nbeats not implemented.')
 
         torch.no_grad()
         _, forecast = self.model(torch.tensor(features_ts.values, dtype=torch.float).to(self.device))
-        import pandas as pd
-        import numpy as np
         self.prediction = pd.DataFrame([np.array(forecast[i].data[0]) for i in range(len(forecast))], index=features_ts.index)

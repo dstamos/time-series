@@ -75,8 +75,8 @@ class DataHandler:
         self.features = df.drop(self.settings.data.label, axis=1)
 
     def m4_gen(self):
-        training_filename = 'src/nbeats_theirs/data/m4/train/Daily-train.csv'
-        test_filename = 'src/nbeats_theirs/data/m4/val/Daily-test.csv'
+        training_filename = 'data/m4/train/Daily-train.csv'
+        test_filename = 'data/m4/val/Daily-test.csv'
 
         def _load_m4(filename, idx):
             with open(filename) as csv_file:
@@ -106,7 +106,7 @@ class DataHandler:
             return x, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_time_series)
-        self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.horizon)
+        self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.forecast_length)
 
         self.features_ts.single_output, self.labels_ts.single_output = get_features_labels(test_time_series)
-        self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.horizon)
+        self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.forecast_length)

@@ -1,5 +1,5 @@
 import os
-from src.nbeats_theirs.model import NBeatsNet
+from src.nbeats.model import NBeatsNet
 import matplotlib.pyplot as plt
 import torch
 from torch import optim
@@ -90,8 +90,6 @@ def main():
     plt.plot(labels_ts, 'k')
     plt.plot(forecast)
     k = 1
-
-
 
     # TODO Complete the training pipeline
     # TODO Complete the forecasting pipeline
