@@ -66,13 +66,26 @@ class DataHandler:
         df.drop(['Datetime', 'NMHC(GT)'], axis=1, inplace=True)
         # df.fillna(method='ffill', inplace=True)
         df.interpolate(method='linear', inplace=True)
-        print(df)
 
-        # Cince CO(GT) is the label, we need to make sure we are looking 'ahead' to define it
-        df[self.settings.data.label] = df[self.settings.data.label].shift(-1)
-        df = df.dropna()
-        self.labels = df[self.settings.data.label]
-        self.features = df.drop(self.settings.data.label, axis=1)
+
+        training_df = df.iloc[:int(df.shape[0] * self.settings.data.training_percentage)]
+        test_df = df.drop(training_df.index)
+        print(training_df.shape)
+
+        # create labels, create features for training and test
+        def get_features_labels(mixed_df):
+            # Cince CO(GT) is the label, we need to make sure we are looking 'ahead' to define it
+            mixed_df[self.settings.data.label] = mixed_df[self.settings.data.label].shift(-self.settings.data.label_period)
+            df = mixed_df.dropna()
+            y = df[self.settings.data.label]
+            x = df.drop(self.settings.data.label, axis=1)
+            return x, y
+
+        self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_df)
+        # self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_df)
+
+        self.features_ts.single_output, self.labels_ts.single_output = get_features_labels(test_df)
+        # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_df)
 
     def m4_gen(self):
         training_filename = 'data/m4/train/Daily-train.csv'
@@ -90,16 +103,9 @@ class DataHandler:
 
         training_time_series = _load_m4(training_filename, self.settings.data.m4_time_series_idx)
         test_time_series = _load_m4(test_filename, self.settings.data.m4_time_series_idx)
+        # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
+        test_time_series.index = pd.RangeIndex(start=training_time_series.index[-1] + 1, stop=training_time_series.index[-1] + 1 + len(test_time_series), step=1)
 
-        # def get_features_labels(time_series):
-        #     labels = namedtuple('labels', ['single_output', 'multioutput'])
-        #     labels.single_output = forward_shift_ts(time_series, [1])
-        #     labels.multioutput = forward_shift_ts(time_series, range(1, self.settings.data.horizon + 1))
-        #     features, labels.multioutput = prune_data(time_series, labels.multioutput)
-        #     features, labels.single_output = prune_data(time_series, labels.single_output)
-        #     return features, labels
-
-        # self.settings.data.horizon
         def get_features_labels(time_series, horizon=1):
             y = forward_shift_ts(time_series, range(1, horizon + 1))
             x, y = prune_data(time_series, y)

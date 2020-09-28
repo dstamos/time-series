@@ -28,27 +28,23 @@ class Sarimax:
         self.model = None
         self.prediction = None
 
-    def fit(self, data):
-        horizon = self.settings.data.horizon
-        n_horizons_lookback = self.settings.data.n_horizons_lookback
+    def fit(self, time_series, exog_variables=None):
         if self.settings.training.use_exog is True:
-            exog_variables = data.features.iloc[:horizon*n_horizons_lookback].diff().fillna(method='bfill')
+            exog_variables = exog_variables  # FIXME.diff().fillna(method='bfill')
         else:
             exog_variables = None
-        model_exog = SARIMAX(data.labels.iloc[:horizon*n_horizons_lookback], exog=exog_variables,
+        model_exog = SARIMAX(time_series, exog=exog_variables,
                              order=(self.ar_order, self.difference_order, self.ma_order),
                              seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
-        self.model = model_exog.fit(disp=True, maxiter=150)
+        self.model = model_exog.fit(disp=1, maxiter=150)
 
-    def forecast(self, data, period=1):
-        horizon = self.settings.data.horizon
-        n_horizons_lookback = self.settings.data.n_horizons_lookback
+    def forecast(self, exog_variables=None, foreward_periods=1):
         if self.settings.training.use_exog is True:
-            exog_variables = data.features.iloc[horizon*n_horizons_lookback:horizon*n_horizons_lookback+period].diff().fillna(method='bfill')
+            exog_variables = exog_variables
         else:
             exog_variables = None
 
-        preds = self.model.get_forecast(steps=period, exog=exog_variables)
+        preds = self.model.get_forecast(steps=foreward_periods, exog=exog_variables)
         forecast_table = preds.summary_frame(alpha=0.10)
         self.prediction = forecast_table['mean']
 

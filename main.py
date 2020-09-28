@@ -1,25 +1,72 @@
 from src.data_management import DataHandler, Settings
-from src.training import Sarimax, Xgboost
+from src.training import Sarimax, Xgboost, NBeats
 
 
 def main():
     data_settings = {'dataset': 'AirQualityUCI',
                      'label': 'CO(GT)',
-                     'horizon': 24,
-                     'n_horizons_lookback': 5}
+                     'label_period': 1,
+                     'training_percentage': 0.03}
+
+    # data_settings = {'dataset': 'm4',
+    #                  'm4_time_series_idx': 0,
+    #                  'forecast_length': 5
+    #                  }
 
     training_settings = {'method': 'SARIMAX',
                          'use_exog': True}
+
+    # training_settings = {'method': 'NBeats',
+    #                      'use_exog': True,
+    #                      'lookback_length': 4,
+    #                      'forecast_length': data_settings['forecast_length'],
+    #                      'batch_size': 8
+    #                      }
+
+    # data_settings = {'dataset': 'm4',
+    #                  'horizon': forecast_length,
+    #                  'm4_time_series_idx': 0,
+    #                  'n_horizons_lookback': 3}
 
     settings = Settings(data_settings, 'data')
     settings.add_settings(training_settings, 'training')
     data = DataHandler(settings)
 
+    # TODO Get Sarimax to work with m4 + AirQualityUCI. (forecast/lookback etc)
+    # TODO Get xgboost to work with m4 + AirQualityUCI
+    # TODO Read up on ARIMA for meta-learning
+    # TODO Move the bias here
+
+    # TODO Get the training to work to output forecasting
+    # TODO Implement the old dataset for NBeats as well. (special treatment for multivariate?) - None or whatever
+    # TODO Revisit sarimax and xgboost
+    # TODO Bring bias meta-learning
+
+    # model = NBeats(settings)
+    # model.fit(data)
+    # model.forecast(data.features_ts.multioutput)
+    #
+    # plt.plot(data.labels_ts.single_output, 'k')
+    # plt.plot(model.prediction)
+    # plt.pause(0.1)
+
     model = Sarimax(settings)
-    model.fit(data)
+    model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
+    foreward_periods = 48 * 8
+    model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
+
+    # model.fit(data.labels_tr.single_output)
+    # foreward_periods = 48 * 8
+    # model.forecast(foreward_periods=foreward_periods)
+
+    import matplotlib.pyplot as plt
+    plt.plot(data.labels_ts.single_output[:foreward_periods], 'k')
+    plt.plot(model.prediction)
+    plt.pause(0.1)
+    plt.show()
 
     forecast_period = 24*7
-    model.forecast(data, period=forecast_period)
+    model.forecast(data, foreward_periods=forecast_period)
     #
     model_xgboost = Xgboost(settings)
     model_xgboost.fit(data)
