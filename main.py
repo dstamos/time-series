@@ -13,7 +13,7 @@ def main():
     #                  'forecast_length': 24}
 
     # training_settings = {'method': 'SARIMAX',
-    #                      'use_exog': True}
+    #                      'use_exog': False}
 
     training_settings = {'method': 'xgboost',
                          'use_exog': True,
@@ -25,7 +25,6 @@ def main():
     #                      'forecast_length': data_settings['forecast_length'],
     #                      'batch_size': 8
     #                      }
-
 
     settings = Settings(data_settings, 'data')
     settings.add_settings(training_settings, 'training')
@@ -41,31 +40,45 @@ def main():
 
     #############################################################################
 
-    model = Sarimax(settings)
+    # model = Sarimax(settings)
+    #
+    # if settings.training.use_exog is True:
+    #     model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
+    #     foreward_periods = 24 * 6
+    #     model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
+    # else:
+    #     model.fit(data.labels_tr.single_output)
+    #     foreward_periods = 24 * 6
+    #     model.forecast(foreward_periods=foreward_periods)
 
-    if settings.training.use_exog is True:
-        model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
-        foreward_periods = 24 * 6
-        model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
-    else:
-        model.fit(data.labels_tr.single_output)
-        foreward_periods = 24 * 6
-        model.forecast(foreward_periods=foreward_periods)
-
+    #     import matplotlib.pyplot as plt
+    #     prediction = model.model.get_prediction(start=data.labels_tr.single_output.index[0], end=data.labels_tr.single_output.index[-1])
+    #     plt.plot(data.labels_tr.single_output, 'k')
+    #     plt.plot(prediction.predicted_mean)
+    #     plt.plot(data.labels_ts.single_output[:foreward_periods], 'tab:red')
+    #     plt.plot(model.prediction, 'tab:blue')
+    #     plt.pause(0.1)
+    #     print('done')
+    #     plt.show()
+    #     exit()
     #############################################################################
 
-    model_xgboost = Xgboost(settings)
-    model_xgboost.fit(data)
+    model = Xgboost(settings)
+    model.fit(data.labels_tr.single_output, data.features_tr.single_output)
 
     forecast_period = 24 * 6
-    model_xgboost.forecast(data, period=forecast_period)
+    if settings.training.use_exog is True:
+        tr_pred = model.forecast(data.features_tr.single_output)
+        ts_pred = model.forecast(data.features_ts.single_output.iloc[:forecast_period])
+    else:
+        tr_pred = model.forecast(data.labels_tr.single_output)
+        ts_pred = model.forecast(data.labels_ts.single_output.iloc[:forecast_period])
 
     import matplotlib.pyplot as plt
-    prediction = model.model.get_prediction(start=data.labels_tr.single_output.index[0], end=data.labels_tr.single_output.index[-1])
     plt.plot(data.labels_tr.single_output, 'k')
-    plt.plot(prediction.predicted_mean)
-    plt.plot(data.labels_ts.single_output[:foreward_periods], 'tab:red')
-    plt.plot(model.prediction, 'tab:blue')
+    plt.plot(tr_pred)
+    plt.plot(data.labels_ts.single_output.iloc[:forecast_period], 'tab:red')
+    plt.plot(ts_pred, 'tab:blue')
     plt.pause(0.1)
     print('done')
     plt.show()

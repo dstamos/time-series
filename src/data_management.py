@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import csv
-from src.utilities import forward_shift_ts, prune_data
+from src.utilities import forward_shift_ts
 from collections import namedtuple
 pd.options.mode.chained_assignment = None  # default='warn'
 pd.set_option('display.max_rows', 50)
@@ -73,8 +73,11 @@ class DataHandler:
             # Cince CO(GT) is the label, we need to make sure we are looking 'ahead' to define it
             mixed_df[self.settings.data.label] = mixed_df[self.settings.data.label].shift(-self.settings.data.label_period)
             mixed_df = mixed_df.dropna()
-            y = mixed_df[self.settings.data.label]
-            x = mixed_df.drop(self.settings.data.label, axis=1)
+            y = pd.DataFrame(mixed_df[self.settings.data.label])
+            if self.settings.training.use_exog is True:
+                x = mixed_df.drop(self.settings.data.label, axis=1)
+            else:
+                x = None
             return x, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_df)
@@ -112,7 +115,7 @@ class DataHandler:
             return None, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_time_series)
-        self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.forecast_length)
+        # self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.forecast_length)
 
         self.features_ts.single_output, self.labels_ts.single_output = get_features_labels(test_time_series)
-        self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.forecast_length)
+        # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.forecast_length)

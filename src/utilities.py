@@ -3,7 +3,7 @@ import pandas as pd
 from torch.utils.data import Dataset
 
 
-def lag_features(indicators, lags):
+def lag_features(indicators, lags, keep_original=True):
     lagged_indicators = [None] * lags
     original_column_names_to_lag = indicators.columns.values.tolist()
     for idx, c_lag in enumerate(range(1, lags)):
@@ -12,7 +12,8 @@ def lag_features(indicators, lags):
         temp.columns = column_names
         lagged_indicators[idx] = temp
 
-    lagged_indicators.insert(0, indicators)
+    if keep_original is True:
+        lagged_indicators.insert(0, indicators)
     lagged_indicators = pd.concat(lagged_indicators, axis=1)
 
     return lagged_indicators
