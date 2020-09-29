@@ -56,14 +56,6 @@ class DataHandler:
         df.index = df['Datetime'].values
         df.index = pd.DatetimeIndex(df['Datetime'].values, freq='1H')
 
-        # for curr_index in range(len(df)):
-        #     df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(year=df['Date'].iloc[curr_index].year)
-        #     try:
-        #         df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(month=df['Date'].iloc[curr_index].month)
-        #     except:
-        #         k = 1
-        #     df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(day=df['Date'].iloc[curr_index].day)
-
         df.drop(['Time', 'Date'], axis=1, inplace=True)
         df.index = pd.DatetimeIndex(df['Datetime'].values, freq='1H')
 
