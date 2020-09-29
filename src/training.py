@@ -33,10 +33,11 @@ class Sarimax:
             exog_variables = exog_variables  # FIXME.diff().fillna(method='bfill')
         else:
             exog_variables = None
-        model_exog = SARIMAX(time_series, exog=exog_variables,
-                             order=(self.ar_order, self.difference_order, self.ma_order),
-                             seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
-        self.model = model_exog.fit(disp=1, maxiter=150)
+
+        model = SARIMAX(time_series, exog=exog_variables,
+                        order=(self.ar_order, self.difference_order, self.ma_order),
+                        seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
+        self.model = model.fit(dips=1, maxiter=150)
 
     def forecast(self, exog_variables=None, foreward_periods=1):
         if self.settings.training.use_exog is True:

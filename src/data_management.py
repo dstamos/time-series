@@ -52,21 +52,25 @@ class DataHandler:
         df.replace(to_replace=-200, value=np.nan, inplace=True)
 
         # Turning Time into Timestamp defaults to current date. So we replace dates with the given/correct ones
-        df['Datetime'] = [pd.Timestamp(str(df['Time'].iloc[i])) for i in range(len(df))]
+        df['Datetime'] = [pd.Timestamp(str(df['Date'].iloc[i].date()) + ' ' + str(df['Time'].iloc[i])) for i in range(len(df))]
+        df.index = df['Datetime'].values
+        df.index = pd.DatetimeIndex(df['Datetime'].values, freq='1H')
 
-        for curr_index in range(len(df)):
-            df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(year=df['Date'].iloc[curr_index].year)
-            df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(month=df['Date'].iloc[curr_index].month)
-            df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(day=df['Date'].iloc[curr_index].day)
+        # for curr_index in range(len(df)):
+        #     df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(year=df['Date'].iloc[curr_index].year)
+        #     try:
+        #         df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(month=df['Date'].iloc[curr_index].month)
+        #     except:
+        #         k = 1
+        #     df['Datetime'].iloc[curr_index] = df['Datetime'].iloc[curr_index].replace(day=df['Date'].iloc[curr_index].day)
 
         df.drop(['Time', 'Date'], axis=1, inplace=True)
-        df.index = pd.DatetimeIndex(df['Datetime'].values, freq='H')
+        df.index = pd.DatetimeIndex(df['Datetime'].values, freq='1H')
 
         # NMHC(GT) Has no values for most of the rows
         df.drop(['Datetime', 'NMHC(GT)'], axis=1, inplace=True)
         # df.fillna(method='ffill', inplace=True)
         df.interpolate(method='linear', inplace=True)
-
 
         training_df = df.iloc[:int(df.shape[0] * self.settings.data.training_percentage)]
         test_df = df.drop(training_df.index)
@@ -76,9 +80,9 @@ class DataHandler:
         def get_features_labels(mixed_df):
             # Cince CO(GT) is the label, we need to make sure we are looking 'ahead' to define it
             mixed_df[self.settings.data.label] = mixed_df[self.settings.data.label].shift(-self.settings.data.label_period)
-            df = mixed_df.dropna()
-            y = df[self.settings.data.label]
-            x = df.drop(self.settings.data.label, axis=1)
+            mixed_df = mixed_df.dropna()
+            y = mixed_df[self.settings.data.label]
+            x = mixed_df.drop(self.settings.data.label, axis=1)
             return x, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_df)
@@ -88,8 +92,10 @@ class DataHandler:
         # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_df)
 
     def m4_gen(self):
-        training_filename = 'data/m4/train/Daily-train.csv'
-        test_filename = 'data/m4/val/Daily-test.csv'
+        if self.settings.training.use_exog is True:
+            raise ValueError('No exogenous variables available for the m4 datasets')
+        training_filename = 'data/m4/Hourly-train.csv'
+        test_filename = 'data/m4/Hourly-test.csv'
 
         def _load_m4(filename, idx):
             with open(filename) as csv_file:
@@ -97,8 +103,10 @@ class DataHandler:
                 # Skip the header
                 next(csv_reader, None)
                 rows = list(csv_reader)
-            # The first column is also spam
+            # The first column is the time series identifier
             row = rows[idx][1:]
+            # Remove empty strings from the end of the list
+            row = list(filter(None, row))
             return pd.DataFrame(np.array(row).astype(float), columns=['m4_' + str(idx)])
 
         training_time_series = _load_m4(training_filename, self.settings.data.m4_time_series_idx)
@@ -108,8 +116,8 @@ class DataHandler:
 
         def get_features_labels(time_series, horizon=1):
             y = forward_shift_ts(time_series, range(1, horizon + 1))
-            x, y = prune_data(time_series, y)
-            return x, y
+            # x, y = prune_data(time_series, y)
+            return None, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_time_series)
         self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.forecast_length)

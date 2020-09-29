@@ -9,9 +9,8 @@ def main():
                      'training_percentage': 0.03}
 
     # data_settings = {'dataset': 'm4',
-    #                  'm4_time_series_idx': 0,
-    #                  'forecast_length': 5
-    #                  }
+    #                  'm4_time_series_idx': 100,
+    #                  'forecast_length': 24}
 
     training_settings = {'method': 'SARIMAX',
                          'use_exog': True}
@@ -32,15 +31,10 @@ def main():
     settings.add_settings(training_settings, 'training')
     data = DataHandler(settings)
 
-    # TODO Get Sarimax to work with m4 + AirQualityUCI. (forecast/lookback etc)
-    # TODO Get xgboost to work with m4 + AirQualityUCI
-    # TODO Read up on ARIMA for meta-learning
+    # TODO Get Sarimax to work with m4
+    # TODO Get xgboost to work with AirQualityUCI + m4
+    # TODO Read up on ARIMA for meta-learning (what is X, why it helps etc)
     # TODO Move the bias here
-
-    # TODO Get the training to work to output forecasting
-    # TODO Implement the old dataset for NBeats as well. (special treatment for multivariate?) - None or whatever
-    # TODO Revisit sarimax and xgboost
-    # TODO Bring bias meta-learning
 
     # model = NBeats(settings)
     # model.fit(data)
@@ -51,19 +45,35 @@ def main():
     # plt.pause(0.1)
 
     model = Sarimax(settings)
-    model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
-    foreward_periods = 48 * 8
-    model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
 
-    # model.fit(data.labels_tr.single_output)
-    # foreward_periods = 48 * 8
-    # model.forecast(foreward_periods=foreward_periods)
+    if settings.training.use_exog is True:
+        model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
+        foreward_periods = 48 * 3
+        model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
+    else:
+        model.fit(data.labels_tr.single_output)
+        foreward_periods = 48 * 3
+        model.forecast(foreward_periods=foreward_periods)
 
     import matplotlib.pyplot as plt
-    plt.plot(data.labels_ts.single_output[:foreward_periods], 'k')
-    plt.plot(model.prediction)
+    # plt.plot(data.labels_ts.single_output[:foreward_periods], 'k')
+    # plt.plot(model.prediction)
+    # plt.pause(0.1)
+    # plt.show()
+
+
+
+    prediction = model.model.get_prediction(start=data.labels_tr.single_output.index[0], end=data.labels_tr.single_output.index[-1])
+    plt.plot(data.labels_tr.single_output, 'k')
+    plt.plot(prediction.predicted_mean)
+    plt.plot(data.labels_ts.single_output[:foreward_periods], 'tab:red')
+    plt.plot(model.prediction, 'tab:blue')
     plt.pause(0.1)
+    print('done')
     plt.show()
+    exit()
+
+
 
     forecast_period = 24*7
     model.forecast(data, foreward_periods=forecast_period)
