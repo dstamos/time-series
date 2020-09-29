@@ -12,8 +12,12 @@ def main():
     #                  'm4_time_series_idx': 100,
     #                  'forecast_length': 24}
 
-    training_settings = {'method': 'SARIMAX',
-                         'use_exog': True}
+    # training_settings = {'method': 'SARIMAX',
+    #                      'use_exog': True}
+
+    training_settings = {'method': 'xgboost',
+                         'use_exog': True,
+                         'lags': 3}
 
     # training_settings = {'method': 'NBeats',
     #                      'use_exog': True,
@@ -22,16 +26,11 @@ def main():
     #                      'batch_size': 8
     #                      }
 
-    # data_settings = {'dataset': 'm4',
-    #                  'horizon': forecast_length,
-    #                  'm4_time_series_idx': 0,
-    #                  'n_horizons_lookback': 3}
 
     settings = Settings(data_settings, 'data')
     settings.add_settings(training_settings, 'training')
     data = DataHandler(settings)
 
-    # TODO Get Sarimax to work with m4
     # TODO Get xgboost to work with AirQualityUCI + m4
     # TODO Read up on ARIMA for meta-learning (what is X, why it helps etc)
     # TODO Move the bias here
@@ -39,30 +38,29 @@ def main():
     # model = NBeats(settings)
     # model.fit(data)
     # model.forecast(data.features_ts.multioutput)
-    #
-    # plt.plot(data.labels_ts.single_output, 'k')
-    # plt.plot(model.prediction)
-    # plt.pause(0.1)
+
+    #############################################################################
 
     model = Sarimax(settings)
 
     if settings.training.use_exog is True:
         model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
-        foreward_periods = 48 * 3
+        foreward_periods = 24 * 6
         model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
     else:
         model.fit(data.labels_tr.single_output)
-        foreward_periods = 48 * 3
+        foreward_periods = 24 * 6
         model.forecast(foreward_periods=foreward_periods)
 
+    #############################################################################
+
+    model_xgboost = Xgboost(settings)
+    model_xgboost.fit(data)
+
+    forecast_period = 24 * 6
+    model_xgboost.forecast(data, period=forecast_period)
+
     import matplotlib.pyplot as plt
-    # plt.plot(data.labels_ts.single_output[:foreward_periods], 'k')
-    # plt.plot(model.prediction)
-    # plt.pause(0.1)
-    # plt.show()
-
-
-
     prediction = model.model.get_prediction(start=data.labels_tr.single_output.index[0], end=data.labels_tr.single_output.index[-1])
     plt.plot(data.labels_tr.single_output, 'k')
     plt.plot(prediction.predicted_mean)
@@ -75,14 +73,7 @@ def main():
 
 
 
-    forecast_period = 24*7
-    model.forecast(data, foreward_periods=forecast_period)
-    #
-    model_xgboost = Xgboost(settings)
-    model_xgboost.fit(data)
 
-    forecast_period = 24*7
-    model_xgboost.forecast(data, period=forecast_period)
     #
 
     import matplotlib.pyplot as plt
