@@ -37,14 +37,15 @@ def prune_data(features, labels=None):
 def forward_shift_ts(df, horizon_list):
     times_series_name = df.columns.values.tolist()[0]
 
-    forwarded_values = [None] * len(horizon_list)
+    forwarded_values = []
     for idx, current_shift in enumerate(horizon_list):
         column_name = str(times_series_name) + '-horizon_' + str(current_shift)
         temp = df[[times_series_name]].shift(-current_shift)
         temp.columns = [column_name]
-        forwarded_values[idx] = temp
-    # FIXME
-    return pd.concat(forwarded_values, axis=1)
+        forwarded_values.append(temp)
+    df = pd.concat(forwarded_values, axis=1)
+    df = df.dropna()
+    return df
 
 
 class PandasDataset(Dataset):

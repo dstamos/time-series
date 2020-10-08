@@ -4,13 +4,8 @@ import xgboost
 import multiprocess as mp
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 import time
-from torch.utils.data import DataLoader, TensorDataset
-from torch import tensor
 from src.utilities import lag_features, prune_data
-from src.nbeats.model import NBeatsNet
-import torch
-from torch import optim
-from torch.nn import functional as F
+from numpy.linalg.linalg import norm, pinv, matrix_power
 
 
 class Sarimax:
@@ -39,13 +34,13 @@ class Sarimax:
                         seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
         self.model = model.fit(dips=1, maxiter=150)
 
-    def forecast(self, exog_variables=None, foreward_periods=1):
+    def predict(self, exog_variables=None, foreward_periods=1):
         if self.settings.training.use_exog is True:
             exog_variables = exog_variables
         else:
             exog_variables = None
 
-        preds = self.model.get_forecast(steps=foreward_periods, exog=exog_variables)
+        preds = self.model.predict(steps=foreward_periods, exog=exog_variables)
         forecast_table = preds.summary_frame(alpha=0.10)
         self.prediction = forecast_table['mean']
 
@@ -87,7 +82,7 @@ class Xgboost:
                   'nthread': mp.cpu_count()-1}
         self.model = xgboost.train(params, dmatrix, num_boost_round=100, callbacks=[heartbeat()])
 
-    def forecast(self, x):
+    def predict(self, x):
         if self.settings.training.use_exog is True:
             x = x  # TODO .diff().fillna(method='bfill')
             # x = self._time_features(x)
@@ -112,75 +107,122 @@ class Xgboost:
         return indicators
 
 
-class NBeats:
+class BiasLTL:
     def __init__(self, settings):
-        import torch
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.settings = settings
-        self.forecast_length = settings.training.forecast_length
-        self.lookback_length = settings.training.lookback_length
+        self.lags = settings.training.lags
 
-        self.model = None
+        self.all_metaparameters = None
+        self.final_metaparameters = None
         self.prediction = None
 
-    def fit(self, data):
-        if self.settings.training.use_exog is True:
-            features_tr = lag_features(data.features_tr.multioutput, self.lookback_length)
-            features_tr, labels_tr = prune_data(features_tr, data.labels_tr.multioutput)
-        else:
-            raise ValueError('Featureless nbeats not implemented.')
+    def fit(self, training_tasks, validation_tasks):
+        training_tasks = self._handle_data(training_tasks)
+        validation_tasks = self._handle_data(validation_tasks)
 
-        dataset = TensorDataset(tensor(features_tr.values, dtype=torch.float), tensor(labels_tr.values, dtype=torch.float))
-        trainloader = DataLoader(dataset, shuffle=True, batch_size=self.settings.training.batch_size)
+        dims = training_tasks[0].training.features.shape[1]
+        best_mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
 
-        print('--- Model ---')
-        net = NBeatsNet(device=self.device,
-                        stack_types=[NBeatsNet.TREND_BLOCK, NBeatsNet.SEASONALITY_BLOCK, NBeatsNet.GENERIC_BLOCK],
-                        forecast_length=self.forecast_length,
-                        thetas_dims=[2, 8, 3],
-                        nb_blocks_per_stack=3,
-                        backcast_length=self.lookback_length,
-                        hidden_layer_units=64,  # 1024
-                        share_weights_in_stack=False,
-                        nb_harmonics=None)
+        best_val_performance = np.Inf
 
-        optimiser = optim.Adam(net.parameters())
+        for regularization_parameter in self.settings.training.regularization_parameter_range:
+            validation_performances = []
+            all_average_vectors = []
 
-        max_grad_steps = 10000
+            # For the sake of faster training
+            mean_vector = best_mean_vector
 
-        initial_grad_step = 0
-        max_epochs = 1
-        losses = []
-        for epoch in range(max_epochs):
-            for grad_step, (x, target) in enumerate(trainloader):
-                grad_step += initial_grad_step
-                optimiser.zero_grad()
-                net.train()
-                backcast, forecast = net(x.to(self.device))
-                loss = F.mse_loss(forecast, target.to(self.device))
-                loss.backward()
-                optimiser.step()
-                print(f'grad_step = {str(grad_step).zfill(6)}, loss = {loss.item():.6f}')
-                losses.append(loss)
-                # if grad_step % 1000 == 0 or (grad_step < 1000 and grad_step % 100 == 0):
-                #     with torch.no_grad():
-                #         save(net, optimiser, grad_step)
-                #         if on_save_callback is not None:
-                #             on_save_callback(x, target, grad_step)
-                if grad_step > max_grad_steps:
-                    print('Finished.')
-                    break
-            print(epoch, 'done')
+            for task_idx in range(len(training_tasks)):
+                #####################################################
+                # Optimisation
+                x_train = training_tasks[task_idx].training.features.values
+                y_train = training_tasks[task_idx].training.labels.values.ravel()
 
-        self.model = net
+                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=3)
+                all_average_vectors.append(mean_vector)
+            #####################################################
+            # Validation only needs to be measured at the very end, after we've trained on all training tasks
+            for validation_task_idx in range(len(validation_tasks)):
+                x_train = validation_tasks[validation_task_idx].training.features.values
+                y_train = validation_tasks[validation_task_idx].training.labels.values.ravel()
+                w = self._solve_wrt_w(mean_vector, x_train, y_train, regularization_parameter)
 
-    def forecast(self, data, period=1):
-        if self.settings.training.use_exog is True:
-            features_ts = lag_features(data.features_ts.multioutput, self.lookback_length)
-            features_ts = prune_data(features_ts)
-        else:
-            raise ValueError('Featureless nbeats not implemented.')
+                x_test = validation_tasks[validation_task_idx].test.features.values
+                y_test = validation_tasks[validation_task_idx].test.labels.values.ravel()
 
-        torch.no_grad()
-        _, forecast = self.model(torch.tensor(features_ts.values, dtype=torch.float).to(self.device))
-        self.prediction = pd.DataFrame([np.array(forecast[i].data[0]) for i in range(len(forecast))], index=features_ts.index)
+                validation_perf = self._performance_check(y_test, x_test @ w)
+                validation_performances.append(validation_perf)
+            validation_performance = np.mean(validation_performances)
+            print(f'lambda: {regularization_parameter:6e} | val MSE: {validation_performance:8.5e}')
+
+            if validation_performance < best_val_performance:
+                validation_criterion = True
+            else:
+                validation_criterion = False
+
+            if validation_criterion:
+                best_val_performance = validation_performance
+
+                best_average_vectors = all_average_vectors
+                best_mean_vector = mean_vector
+        self.all_metaparameters = best_average_vectors
+        self.final_metaparameters = best_mean_vector
+
+    @staticmethod
+    def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
+        step_size_bit = 1e+3
+        n = len(y)
+
+        def grad(curr_h):
+            return 2 * param**2 * n * x.T @ matrix_power(pinv(x @ x.T + param * n * np.eye(n)), 2) @ ((x @ curr_h).ravel() - y)
+
+        i = 0
+        while i < inner_iter_cap:
+            i = i + 1
+            prev_h = h
+            curr_iteration = curr_iteration + i
+            step_size = np.sqrt(2) * step_size_bit / ((step_size_bit + 1) * np.sqrt(curr_iteration))
+            h = prev_h - step_size * grad(prev_h)
+
+        return h
+
+    @staticmethod
+    def _solve_wrt_w(h, x, y, param):
+        n = len(y)
+        dims = x.shape[1]
+
+        c_n_lambda = x.T @ x / n + param * np.eye(dims)
+        w = pinv(c_n_lambda) @ (x.T @ y / n + param * h).ravel()
+
+        return w
+
+    @staticmethod
+    def _performance_check(y_true, y_pred):
+        from sklearn.metrics import mean_squared_error
+        return mean_squared_error(y_true, y_pred)
+
+    def _handle_data(self, list_of_tasks):
+        for task_idx in range(len(list_of_tasks)):
+            y_train = list_of_tasks[task_idx].training.labels
+            # Undecided if I want to keep these or not
+            y_validation = list_of_tasks[task_idx].validation.labels
+            y_test = list_of_tasks[task_idx].test.labels
+            if self.settings.training.use_exog is True:
+                x_train = list_of_tasks[task_idx].training.features
+                features_tr = lag_features(x_train, self.lags)
+
+                # Undecided if I want to keep these or not
+                x_validation = list_of_tasks[task_idx].validation.features
+                features_val = lag_features(x_validation, self.lags)
+
+                x_test = list_of_tasks[task_idx].test.features
+                features_ts = lag_features(x_test, self.lags)
+            else:
+                features_tr = lag_features(y_train, self.lags, keep_original=False)
+                features_val = lag_features(y_validation, self.lags, keep_original=False)
+                features_ts = lag_features(y_test, self.lags, keep_original=False)
+
+            list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
+            list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
+            list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
+        return list_of_tasks

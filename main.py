@@ -1,12 +1,13 @@
-from src.data_management import DataHandler, Settings
-from src.training import Sarimax, Xgboost, NBeats
+from src.data_management import DataHandler, Settings, MealearningDataHandler
+from src.training import Sarimax, Xgboost, BiasLTL
+import numpy as np
 
 
 def main():
-    data_settings = {'dataset': 'AirQualityUCI',
-                     'label': 'CO(GT)',
-                     'label_period': 1,
-                     'training_percentage': 0.03}
+    # data_settings = {'dataset': 'AirQualityUCI',
+    #                  'label': 'CO(GT)',
+    #                  'label_period': 1,
+    #                  'training_percentage': 0.03}
 
     # data_settings = {'dataset': 'm4',
     #                  'm4_time_series_idx': 100,
@@ -15,9 +16,19 @@ def main():
     # training_settings = {'method': 'SARIMAX',
     #                      'use_exog': False}
 
-    training_settings = {'method': 'xgboost',
-                         'use_exog': True,
+    training_settings = {'method': 'ltl',
+                         'use_exog': False,
+                         'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 4, 30)],
                          'lags': 3}
+
+    data_settings = {'dataset': 'm4',
+                     'training_tasks_pct': 0.75,
+                     'validation_tasks_pct': 0.05,
+                     'test_tasks_pct': 0.2,
+                     'training_points_pct': 0.5,
+                     'validation_points_pct': 0.5,
+                     'test_points_pct': 0.5,
+                     'forecast_length': 24}
 
     # training_settings = {'method': 'NBeats',
     #                      'use_exog': True,
@@ -28,15 +39,21 @@ def main():
 
     settings = Settings(data_settings, 'data')
     settings.add_settings(training_settings, 'training')
-    data = DataHandler(settings)
+    # data = DataHandler(settings)
 
-    # TODO Get xgboost to work with AirQualityUCI + m4
-    # TODO Read up on ARIMA for meta-learning (what is X, why it helps etc)
-    # TODO Move the bias here
+    data = MealearningDataHandler(settings)
+
+    """
+    TODO
+    Create labels correctly (percentage change to the horizon
+    Normalization
+    Create features correctly
+    
+    """
 
     # model = NBeats(settings)
     # model.fit(data)
-    # model.forecast(data.features_ts.multioutput)
+    # model.predict(data.features_ts.multioutput)
 
     #############################################################################
 
@@ -45,11 +62,11 @@ def main():
     # if settings.training.use_exog is True:
     #     model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
     #     foreward_periods = 24 * 6
-    #     model.forecast(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
+    #     model.predict(exog_variables=data.features_ts.single_output.iloc[:foreward_periods], foreward_periods=foreward_periods)
     # else:
     #     model.fit(data.labels_tr.single_output)
     #     foreward_periods = 24 * 6
-    #     model.forecast(foreward_periods=foreward_periods)
+    #     model.predict(foreward_periods=foreward_periods)
 
     #     import matplotlib.pyplot as plt
     #     prediction = model.model.get_prediction(start=data.labels_tr.single_output.index[0], end=data.labels_tr.single_output.index[-1])
@@ -62,17 +79,19 @@ def main():
     #     plt.show()
     #     exit()
     #############################################################################
-
+    model = BiasLTL(settings)
+    model.fit(data.training_tasks, data.validation_tasks)
+    #############################################################################
     model = Xgboost(settings)
     model.fit(data.labels_tr.single_output, data.features_tr.single_output)
 
     forecast_period = 24 * 6
     if settings.training.use_exog is True:
-        tr_pred = model.forecast(data.features_tr.single_output)
-        ts_pred = model.forecast(data.features_ts.single_output.iloc[:forecast_period])
+        tr_pred = model.predict(data.features_tr.single_output)
+        ts_pred = model.predict(data.features_ts.single_output.iloc[:forecast_period])
     else:
-        tr_pred = model.forecast(data.labels_tr.single_output)
-        ts_pred = model.forecast(data.labels_ts.single_output.iloc[:forecast_period])
+        tr_pred = model.predict(data.labels_tr.single_output)
+        ts_pred = model.predict(data.labels_ts.single_output.iloc[:forecast_period])
 
     import matplotlib.pyplot as plt
     plt.plot(data.labels_tr.single_output, 'k')

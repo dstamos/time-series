@@ -3,8 +3,9 @@ import pandas as pd
 import csv
 from src.utilities import forward_shift_ts
 from collections import namedtuple
+from sklearn.model_selection import train_test_split
 pd.options.mode.chained_assignment = None  # default='warn'
-pd.set_option('display.max_rows', 50)
+pd.set_option('display.max_rows', 150)
 pd.set_option('display.max_columns', 5000)
 pd.set_option('display.width', 40000)
 
@@ -119,3 +120,116 @@ class DataHandler:
 
         self.features_ts.single_output, self.labels_ts.single_output = get_features_labels(test_time_series)
         # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.forecast_length)
+
+
+class MealearningDataHandler:
+    def __init__(self, settings):
+        self.settings = settings
+
+        self.training_tasks = None
+        self.validation_tasks = None
+        self.test_tasks = None
+
+        self.training_tasks_indexes = None
+        self.validation_tasks_indexes = None
+        self.test_tasks_indexes = None
+
+        if self.settings.data.dataset == 'm4':
+            self.m4_gen()
+        else:
+            raise ValueError('Invalid dataset')
+
+    def m4_gen(self):
+        if self.settings.training.use_exog is True:
+            raise ValueError('No exogenous variables available for the m4 datasets')
+        training_filename = 'data/m4/Hourly-train.csv'
+        test_filename = 'data/m4/Hourly-test.csv'
+
+        # Skip first row
+        assert(len(list(csv.reader(open(training_filename)))) - 1 == len(list(csv.reader(open(test_filename)))) - 1)
+        n_rows = len(list(csv.reader(open(training_filename)))) - 1
+
+        def _load_m4(filename, idx):
+            with open(filename) as csv_file:
+                csv_reader = csv.reader(csv_file)
+                # Skip the header
+                next(csv_reader, None)
+                rows = list(csv_reader)
+            # The first column is the time series identifier
+            row = rows[idx][1:]
+            # Remove empty strings from the end of the list
+            row = list(filter(None, row))
+            return pd.DataFrame(np.array(row).astype(float), columns=['m4_' + str(idx)])
+
+        all_full_time_series = []
+        for time_series_idx in range(n_rows):
+            print(time_series_idx)
+            raw_training_time_series = _load_m4(training_filename, time_series_idx)
+            raw_test_time_series = _load_m4(test_filename, time_series_idx)
+
+            # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
+            raw_test_time_series.index = pd.RangeIndex(start=raw_training_time_series.index[-1] + 1, stop=raw_training_time_series.index[-1] + 1 + len(raw_test_time_series), step=1)
+            full_time_series = pd.concat([raw_training_time_series, raw_test_time_series])
+            all_full_time_series.append(full_time_series)
+
+        # Split the tasks _indexes_ into training/validation/test
+        training_tasks_pct = self.settings.data.training_tasks_pct
+        validation_tasks_pct = self.settings.data.validation_tasks_pct
+        test_tasks_pct = self.settings.data.test_tasks_pct
+        training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
+        validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
+
+        training_points_pct = self.settings.data.training_points_pct
+        validation_points_pct = self.settings.data.validation_points_pct
+        test_points_pct = self.settings.data.test_points_pct
+
+        def dataset_splits(task_indexes):
+            def get_features_labels(time_series, horizon=1):
+                y = forward_shift_ts(time_series, range(1, horizon + 1))
+                return y
+
+            bucket = []
+            for task_index in task_indexes:
+                # Split the dataset for the current tasks into training/validation/test
+                training_time_series, temp_time_series = train_test_split(all_full_time_series[task_index], test_size=1 - training_points_pct, shuffle=False)
+                validation_time_series, test_time_series = train_test_split(temp_time_series, test_size=test_points_pct / (test_points_pct + validation_points_pct), shuffle=False)
+
+                # Features will be filled later within the method, if it requires lagging etc, which is a parameter
+
+                training = namedtuple('Data', ['n_points', 'features', 'labels'])
+                training.features = None
+                training.labels = get_features_labels(training_time_series)
+                training.n_points = len(training_time_series)
+
+                validation = namedtuple('Data', ['n_points', 'features', 'labels'])
+                validation.features = None
+                validation.labels = get_features_labels(validation_time_series)
+                validation.n_points = len(validation_time_series)
+
+                test = namedtuple('Data', ['n_points', 'features', 'labels'])
+                test.features = None
+                test.labels = test_time_series
+                test.n_points = len(test_time_series)
+
+                SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
+                data = SetType(training, validation, test, len(task_indexes))
+
+                bucket.append(data)
+            return bucket
+
+        self.training_tasks = dataset_splits(training_tasks_indexes)
+        self.validation_tasks = dataset_splits(validation_tasks_indexes)
+        self.test_tasks = dataset_splits(test_tasks_indexes)
+
+        self.training_tasks_indexes = training_tasks_indexes
+        self.validation_tasks_indexes = validation_tasks_indexes
+        self.test_tasks_indexes = test_tasks_indexes
+
+        """
+        I need to split the tasks into training/validation/test tasks
+        I need to split each task into training/validation/test time series
+        I need to save those as raw time series
+        I need to extract the labels out of the raw time series
+        
+        I need to confirm that the labels don't snoop forward in anyway and have the correct indexing
+        """
