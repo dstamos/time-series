@@ -4,6 +4,7 @@ import numpy as np
 
 
 def main():
+    np.random.seed(999)
     # data_settings = {'dataset': 'AirQualityUCI',
     #                  'label': 'CO(GT)',
     #                  'label_period': 1,
@@ -18,17 +19,17 @@ def main():
 
     training_settings = {'method': 'ltl',
                          'use_exog': False,
-                         'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 4, 30)],
-                         'lags': 3}
+                         'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 36)],
+                         'lags': 6}
 
     data_settings = {'dataset': 'm4',
                      'training_tasks_pct': 0.75,
                      'validation_tasks_pct': 0.05,
                      'test_tasks_pct': 0.2,
-                     'training_points_pct': 0.5,
-                     'validation_points_pct': 0.5,
-                     'test_points_pct': 0.5,
-                     'forecast_length': 24}
+                     'training_points_pct': 0.3,
+                     'validation_points_pct': 0.3,
+                     'test_points_pct': 0.4,
+                     'forecast_length': 6}
 
     # training_settings = {'method': 'NBeats',
     #                      'use_exog': True,
@@ -45,9 +46,8 @@ def main():
 
     """
     TODO
-    Create labels correctly (percentage change to the horizon
-    Normalization
-    Create features correctly
+    Recheck the pipeline: splits, lags, normalization, labels
+    Create a trivial dataset (sine?)
     
     """
 
@@ -79,6 +79,28 @@ def main():
     #     plt.show()
     #     exit()
     #############################################################################
+
+
+    ##################################################
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure()
+    # ax1 = fig.add_subplot(111)
+    # ax2 = ax1.twinx()
+    #
+    # ax1.plot(data.training_tasks[0].training.raw_time_series, 'tab:blue')
+    # ax2.plot(data.training_tasks[0].training.labels, 'tab:red')
+    # plt.pause(0.1)
+    ##################################################
+    from src.independent_learning import itl, ITL
+
+    # itl(data)
+
+    itl = ITL(settings)
+    itl.fit(data.test_tasks)
+
+
+
+    ##################################################
     model = BiasLTL(settings)
     model.fit(data.training_tasks, data.validation_tasks)
     #############################################################################
@@ -102,6 +124,7 @@ def main():
     print('done')
     plt.show()
     exit()
+
 
 
 

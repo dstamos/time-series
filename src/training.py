@@ -121,7 +121,6 @@ class BiasLTL:
         validation_tasks = self._handle_data(validation_tasks)
 
         dims = training_tasks[0].training.features.shape[1]
-        best_mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
 
         best_val_performance = np.Inf
 
@@ -130,7 +129,8 @@ class BiasLTL:
             all_average_vectors = []
 
             # For the sake of faster training
-            mean_vector = best_mean_vector
+            # mean_vector = best_mean_vector
+            mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
 
             for task_idx in range(len(training_tasks)):
                 #####################################################
@@ -153,7 +153,7 @@ class BiasLTL:
                 validation_perf = self._performance_check(y_test, x_test @ w)
                 validation_performances.append(validation_perf)
             validation_performance = np.mean(validation_performances)
-            print(f'lambda: {regularization_parameter:6e} | val MSE: {validation_performance:8.5e}')
+            print(f'lambda: {regularization_parameter:6e} | val MSE: {validation_performance:12.5f}')
 
             if validation_performance < best_val_performance:
                 validation_criterion = True
@@ -165,6 +165,7 @@ class BiasLTL:
 
                 best_average_vectors = all_average_vectors
                 best_mean_vector = mean_vector
+        print(f'lambda: {np.nan:6e} | val MSE: {best_val_performance:12.5f}')
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
@@ -177,10 +178,11 @@ class BiasLTL:
             return 2 * param**2 * n * x.T @ matrix_power(pinv(x @ x.T + param * n * np.eye(n)), 2) @ ((x @ curr_h).ravel() - y)
 
         i = 0
+        curr_iteration = curr_iteration * inner_iter_cap
         while i < inner_iter_cap:
             i = i + 1
             prev_h = h
-            curr_iteration = curr_iteration + i
+            curr_iteration = curr_iteration + 1
             step_size = np.sqrt(2) * step_size_bit / ((step_size_bit + 1) * np.sqrt(curr_iteration))
             h = prev_h - step_size * grad(prev_h)
 
@@ -203,26 +205,35 @@ class BiasLTL:
 
     def _handle_data(self, list_of_tasks):
         for task_idx in range(len(list_of_tasks)):
+            # The features are based just on the percentage difference of values of the time series
+            raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.diff()
+            raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.diff()
+            raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.diff()
+
             y_train = list_of_tasks[task_idx].training.labels
-            # Undecided if I want to keep these or not
             y_validation = list_of_tasks[task_idx].validation.labels
             y_test = list_of_tasks[task_idx].test.labels
             if self.settings.training.use_exog is True:
                 x_train = list_of_tasks[task_idx].training.features
                 features_tr = lag_features(x_train, self.lags)
 
-                # Undecided if I want to keep these or not
                 x_validation = list_of_tasks[task_idx].validation.features
                 features_val = lag_features(x_validation, self.lags)
 
                 x_test = list_of_tasks[task_idx].test.features
                 features_ts = lag_features(x_test, self.lags)
             else:
-                features_tr = lag_features(y_train, self.lags, keep_original=False)
-                features_val = lag_features(y_validation, self.lags, keep_original=False)
-                features_ts = lag_features(y_test, self.lags, keep_original=False)
+                features_tr = lag_features(raw_time_series_tr, self.lags, keep_original=False)
+                features_val = lag_features(raw_time_series_val, self.lags, keep_original=False)
+                features_ts = lag_features(raw_time_series_ts, self.lags, keep_original=False)
 
             list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
             list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
             list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
+
+            # Normalise the features
+            # list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
+            # list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1, keepdims=True)
+            # list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
+
         return list_of_tasks

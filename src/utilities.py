@@ -22,10 +22,11 @@ def lag_features(indicators, lags, keep_original=True):
 def prune_data(features, labels=None):
     features = features.replace([np.inf, -np.inf], np.nan)
     nan_points_idx = features.index[pd.isnull(features).any(1).to_numpy().nonzero()[0]]
+    all_zeroes_idx = features.index[np.where(np.all(features == 0, axis=1))[0]]
 
     if labels is not None:
         nan_labels_idx = labels.index[pd.isnull(labels).any(1).to_numpy().nonzero()[0]]
-        idx_to_drop = np.concatenate((nan_labels_idx, nan_points_idx))
+        idx_to_drop = np.concatenate((nan_labels_idx, nan_points_idx, all_zeroes_idx))
         labels = labels.drop(idx_to_drop)
         features = features.drop(idx_to_drop)
         return features, labels

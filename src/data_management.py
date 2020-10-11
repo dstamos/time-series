@@ -136,6 +136,8 @@ class MealearningDataHandler:
 
         if self.settings.data.dataset == 'm4':
             self.m4_gen()
+        elif self.settings.data.dataset == 'sine':
+            self.synthetic_sine()
         else:
             raise ValueError('Invalid dataset')
 
@@ -163,13 +165,13 @@ class MealearningDataHandler:
 
         all_full_time_series = []
         for time_series_idx in range(n_rows):
-            print(time_series_idx)
             raw_training_time_series = _load_m4(training_filename, time_series_idx)
             raw_test_time_series = _load_m4(test_filename, time_series_idx)
 
             # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
             raw_test_time_series.index = pd.RangeIndex(start=raw_training_time_series.index[-1] + 1, stop=raw_training_time_series.index[-1] + 1 + len(raw_test_time_series), step=1)
             full_time_series = pd.concat([raw_training_time_series, raw_test_time_series])
+            full_time_series = full_time_series[:200]
             all_full_time_series.append(full_time_series)
 
         # Split the tasks _indexes_ into training/validation/test
@@ -184,8 +186,10 @@ class MealearningDataHandler:
         test_points_pct = self.settings.data.test_points_pct
 
         def dataset_splits(task_indexes):
-            def get_features_labels(time_series, horizon=1):
-                y = forward_shift_ts(time_series, range(1, horizon + 1))
+            def get_labels(time_series, horizon=1):
+                y = (time_series - time_series.shift(-horizon)) / time_series
+                # Will dropna later in the feature generation etc
+                # y = y.dropna()
                 return y
 
             bucket = []
@@ -196,20 +200,23 @@ class MealearningDataHandler:
 
                 # Features will be filled later within the method, if it requires lagging etc, which is a parameter
 
-                training = namedtuple('Data', ['n_points', 'features', 'labels'])
+                training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 training.features = None
-                training.labels = get_features_labels(training_time_series)
-                training.n_points = len(training_time_series)
+                training.labels = get_labels(training_time_series, horizon=12)
+                training.raw_time_series = training_time_series
+                training.n_points = len(training.labels)
 
-                validation = namedtuple('Data', ['n_points', 'features', 'labels'])
+                validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 validation.features = None
-                validation.labels = get_features_labels(validation_time_series)
-                validation.n_points = len(validation_time_series)
+                validation.labels = get_labels(validation_time_series, horizon=12)
+                validation.raw_time_series = validation_time_series
+                validation.n_points = len(validation.labels)
 
-                test = namedtuple('Data', ['n_points', 'features', 'labels'])
+                test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 test.features = None
-                test.labels = test_time_series
-                test.n_points = len(test_time_series)
+                test.labels = get_labels(test_time_series, horizon=12)
+                test.raw_time_series = test_time_series
+                test.n_points = len(test.labels)
 
                 SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
                 data = SetType(training, validation, test, len(task_indexes))
@@ -233,3 +240,78 @@ class MealearningDataHandler:
         
         I need to confirm that the labels don't snoop forward in anyway and have the correct indexing
         """
+
+    def synthetic_sine(self):
+        if self.settings.training.use_exog is True:
+            raise ValueError('No exogenous variables available for the m4 datasets')
+
+        n_time_series = 100
+
+        x = np.arange(0, 20 * np.pi, 0.1)   # start,stop,step
+        ts = pd.DataFrame(np.sin(x), columns=['sine'])
+
+        all_full_time_series = []
+        for time_series_idx in range(n_time_series):
+            all_full_time_series.append(ts)
+
+        # Split the tasks _indexes_ into training/validation/test
+        training_tasks_pct = self.settings.data.training_tasks_pct
+        validation_tasks_pct = self.settings.data.validation_tasks_pct
+        test_tasks_pct = self.settings.data.test_tasks_pct
+        training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
+        validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
+
+        training_points_pct = self.settings.data.training_points_pct
+        validation_points_pct = self.settings.data.validation_points_pct
+        test_points_pct = self.settings.data.test_points_pct
+
+        def dataset_splits(task_indexes):
+            def get_labels(time_series, horizon=1):
+                # y = (time_series - time_series.shift(-horizon)) / time_series
+                # y = time_series.shift(-horizon).pct_change()
+
+                # y = time_series.shift(-horizon)
+                y = time_series.diff()
+
+                # Will dropna later in the feature generation etc
+                # y = y.dropna()
+                return y
+
+            bucket = []
+            for task_index in task_indexes:
+                # Split the dataset for the current tasks into training/validation/test
+                training_time_series, temp_time_series = train_test_split(all_full_time_series[task_index], test_size=1 - training_points_pct, shuffle=False)
+                validation_time_series, test_time_series = train_test_split(temp_time_series, test_size=test_points_pct / (test_points_pct + validation_points_pct), shuffle=False)
+
+                # Features will be filled later within the method, if it requires lagging etc, which is a parameter
+                training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                training.features = None
+                training.labels = get_labels(training_time_series, horizon=1)
+                training.raw_time_series = training_time_series
+                training.n_points = len(training.labels)
+
+                validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                validation.features = None
+                validation.labels = get_labels(validation_time_series, horizon=1)
+                validation.raw_time_series = validation_time_series
+                validation.n_points = len(validation.labels)
+
+                test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                test.features = None
+                test.labels = get_labels(test_time_series, horizon=1)
+                test.raw_time_series = test_time_series
+                test.n_points = len(test.labels)
+
+                SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
+                data = SetType(training, validation, test, len(task_indexes))
+
+                bucket.append(data)
+            return bucket
+
+        self.training_tasks = dataset_splits(training_tasks_indexes)
+        self.validation_tasks = dataset_splits(validation_tasks_indexes)
+        self.test_tasks = dataset_splits(test_tasks_indexes)
+
+        self.training_tasks_indexes = training_tasks_indexes
+        self.validation_tasks_indexes = validation_tasks_indexes
+        self.test_tasks_indexes = test_tasks_indexes
