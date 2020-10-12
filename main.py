@@ -35,6 +35,16 @@ def main():
 
     training(data, training_settings)
 
+    # TODO
+    """
+    .fit for ITL
+    .fit for LTL
+    SARIMAX
+    xgboost
+    
+    benchmark
+    """
+
     k = 1
 
 
