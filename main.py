@@ -10,10 +10,6 @@ def main():
     #                  'label_period': 1,
     #                  'training_percentage': 0.03}
 
-    # data_settings = {'dataset': 'm4',
-    #                  'm4_time_series_idx': 100,
-    #                  'forecast_length': 24}
-
     # training_settings = {'method': 'SARIMAX',
     #                      'use_exog': False}
 
@@ -40,16 +36,8 @@ def main():
 
     settings = Settings(data_settings, 'data')
     settings.add_settings(training_settings, 'training')
-    # data = DataHandler(settings)
 
     data = MealearningDataHandler(settings)
-
-    """
-    TODO
-    Recheck the pipeline: splits, lags, normalization, labels
-    Create a trivial dataset (sine?)
-    
-    """
 
     # model = NBeats(settings)
     # model.fit(data)
@@ -78,9 +66,6 @@ def main():
     #     print('done')
     #     plt.show()
     #     exit()
-    #############################################################################
-
-
     ##################################################
     # import matplotlib.pyplot as plt
     # fig = plt.figure()
@@ -97,8 +82,6 @@ def main():
 
     itl = ITL(settings)
     itl.fit(data.test_tasks)
-
-    # exit()
 
     ##################################################
     model = BiasLTL(settings)
@@ -126,58 +109,18 @@ def main():
     print('done')
     plt.show()
     exit()
-
-
-
-
-
+    # import matplotlib.pyplot as plt
     #
-
-    import matplotlib.pyplot as plt
-
-    plt.figure()
-    plt.plot(data.labels.iloc[:settings.data.horizon*settings.data.n_horizons_lookback], 'k')
-    plt.plot(data.labels.iloc[settings.data.horizon*settings.data.n_horizons_lookback:settings.data.horizon*settings.data.n_horizons_lookback+forecast_period], 'tab:blue')
-
-    plt.plot(model.prediction, 'tab:red')
-    plt.plot(model_xgboost.prediction, 'tab:orange')
-
-    plt.pause(0.1)
-    plt.show()
-    print('done')
-
-    k = 1
-
+    # plt.figure()
+    # plt.plot(data.labels.iloc[:settings.data.horizon*settings.data.n_horizons_lookback], 'k')
+    # plt.plot(data.labels.iloc[settings.data.horizon*settings.data.n_horizons_lookback:settings.data.horizon*settings.data.n_horizons_lookback+forecast_period], 'tab:blue')
     #
-    # import os
-    # import pickle
-    # if not os.path.exists('results'):
-    #     os.makedirs('results')
-    # f = open('results' + '/' + settings.data.dataset + ".pckl", 'wb')
-    # pickle.dump(results, f)
-    # f.close()
-
-    # results = pickle.load(open('results/' + str(settings.data.dataset) + '.pckl', "rb"))
-
-    # TODO Train on a few epochs and see predictions
-    # TODO Rework the NBeats strucutre, move stuff inside src etc
-
-    # TODO Try SARIMAX without diff on indicators
-    # TODO Try predicting the average co2 of the rolling 8 hours
-    # TODO xgboost for prediction
-    #   TODO Add one-hot encoding of hourly time features for xgboost and don't lag them
-    # TODO NBeats for prediction
-    # TODO Rework all classes in training.py to match the "model" superclass in pytorch
-
-    # TODO Testing metrics
-
-    # TODO Simple linear regression (AR(p))
-    # TODO Work on the diff of the labels and recover the full label afterwards
-    # TODO Multivariate NBEATS
-
-    # TODO Read NBEATS experiments metalearning
-
-    # Implement https://github.com/philipperemy/n-beats https://github.com/philipperemy/n-beats ( simpler )
+    # plt.plot(model.prediction, 'tab:red')
+    # plt.plot(model_xgboost.prediction, 'tab:orange')
+    #
+    # plt.pause(0.1)
+    # plt.show()
+    # print('done')
 
 
 if __name__ == "__main__":
