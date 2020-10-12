@@ -24,7 +24,7 @@ class Sarimax:
         self.prediction = None
 
     def fit(self, time_series, exog_variables=None):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             exog_variables = exog_variables  # FIXME.diff().fillna(method='bfill')
         else:
             exog_variables = None
@@ -35,7 +35,7 @@ class Sarimax:
         self.model = model.fit(dips=1, maxiter=150)
 
     def predict(self, exog_variables=None, foreward_periods=1):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             exog_variables = exog_variables
         else:
             exog_variables = None
@@ -48,13 +48,13 @@ class Sarimax:
 class Xgboost:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.training.lags
+        self.lags = settings.lags
 
         self.model = None
         self.prediction = None
 
     def fit(self, labels, x=None):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             x = x  # TODO Try .diff().fillna(method='bfill')
             # x = self._time_features(x)
             features = lag_features(x, self.lags)
@@ -83,7 +83,7 @@ class Xgboost:
         self.model = xgboost.train(params, dmatrix, num_boost_round=100, callbacks=[heartbeat()])
 
     def predict(self, x):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             x = x  # TODO .diff().fillna(method='bfill')
             # x = self._time_features(x)
             features = lag_features(x, self.lags)
@@ -110,7 +110,7 @@ class Xgboost:
 class BiasLTL:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.training.lags
+        self.lags = settings.lags
 
         self.all_metaparameters = None
         self.final_metaparameters = None
@@ -124,7 +124,7 @@ class BiasLTL:
 
         best_val_performance = np.Inf
 
-        for regularization_parameter in self.settings.training.regularization_parameter_range:
+        for regularization_parameter in self.settings.regularization_parameter_range:
             validation_performances = []
             all_average_vectors = []
 
@@ -213,7 +213,7 @@ class BiasLTL:
             y_train = list_of_tasks[task_idx].training.labels
             y_validation = list_of_tasks[task_idx].validation.labels
             y_test = list_of_tasks[task_idx].test.labels
-            if self.settings.training.use_exog is True:
+            if self.settings.use_exog is True:
                 x_train = list_of_tasks[task_idx].training.features
                 features_tr = lag_features(x_train, self.lags)
 

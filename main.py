@@ -19,6 +19,7 @@ def main():
                          'lags': 6}
 
     data_settings = {'dataset': 'sine',
+                     'use_exog': False,
                      'training_tasks_pct': 0.75,
                      'validation_tasks_pct': 0.05,
                      'test_tasks_pct': 0.2,
@@ -27,24 +28,12 @@ def main():
                      'test_points_pct': 0.4,
                      'forecast_length': 6}
 
-    # training_settings = {'method': 'NBeats',
-    #                      'use_exog': True,
-    #                      'lookback_length': 4,
-    #                      'forecast_length': data_settings['forecast_length'],
-    #                      'batch_size': 8
-    #                      }
+    data_settings = Settings(data_settings)
+    training_settings = Settings(training_settings)
 
-    settings = Settings(data_settings, 'data')
-    settings.add_settings(training_settings, 'training')
-
-    data = MealearningDataHandler(settings)
-
-    # model = NBeats(settings)
-    # model.fit(data)
-    # model.predict(data.features_ts.multioutput)
+    data = MealearningDataHandler(data_settings)
 
     #############################################################################
-
     # model = Sarimax(settings)
     #
     # if settings.training.use_exog is True:
@@ -76,24 +65,22 @@ def main():
     # ax2.plot(data.training_tasks[0].training.labels, 'tab:red')
     # plt.pause(0.1)
     ##################################################
-    from src.independent_learning import itl, ITL
+    from src.independent_learning import ITL
 
-    # itl(data)
-
-    itl = ITL(settings)
+    itl = ITL(training_settings)
     itl.fit(data.test_tasks)
 
     ##################################################
-    model = BiasLTL(settings)
+    model = BiasLTL(training_settings)
     model.fit(data.training_tasks, data.validation_tasks)
 
     exit()
     #############################################################################
-    model = Xgboost(settings)
+    model = Xgboost(training_settings)
     model.fit(data.labels_tr.single_output, data.features_tr.single_output)
 
     forecast_period = 24 * 6
-    if settings.training.use_exog is True:
+    if training_settings.training.use_exog is True:
         tr_pred = model.predict(data.features_tr.single_output)
         ts_pred = model.predict(data.features_ts.single_output.iloc[:forecast_period])
     else:

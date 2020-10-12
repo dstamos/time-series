@@ -11,24 +11,8 @@ pd.set_option('display.width', 40000)
 
 
 class Settings:
-    def __init__(self, dictionary, struct_name=None):
-        if struct_name is None:
-            self.__dict__.update(**dictionary)
-        else:
-            temp_settings = Settings(dictionary)
-            setattr(self, struct_name, temp_settings)
-
-    def add_settings(self, dictionary, struct_name=None):
-        if struct_name is None:
-            self.__dict__.update(dictionary)
-        else:
-            if hasattr(self, struct_name):
-                temp_settings = getattr(self, struct_name)
-                temp_settings.__dict__.update(dictionary)
-            else:
-                temp_settings = Settings(dictionary)
-            setattr(self, struct_name, temp_settings)
-
+    def __init__(self, dictionary):
+        self.__dict__.update(**dictionary)
 
 class DataHandler:
     def __init__(self, settings):
@@ -38,9 +22,9 @@ class DataHandler:
         self.labels_ts = namedtuple('labels', ['single_output', 'multioutput'])
         self.features_ts = namedtuple('features', ['single_output', 'multioutput'])
 
-        if self.settings.data.dataset == 'AirQualityUCI':
+        if self.settings.dataset == 'AirQualityUCI':
             self.air_quality_gen()
-        elif self.settings.data.dataset == 'm4':
+        elif self.settings.dataset == 'm4':
             self.m4_gen()
         else:
             raise ValueError('Invalid dataset')
@@ -65,18 +49,18 @@ class DataHandler:
         # df.fillna(method='ffill', inplace=True)
         df.interpolate(method='linear', inplace=True)
 
-        training_df = df.iloc[:int(df.shape[0] * self.settings.data.training_percentage)]
+        training_df = df.iloc[:int(df.shape[0] * self.settings.training_percentage)]
         test_df = df.drop(training_df.index)
         print(training_df.shape)
 
         # create labels, create features for training and test
         def get_features_labels(mixed_df):
             # Cince CO(GT) is the label, we need to make sure we are looking 'ahead' to define it
-            mixed_df[self.settings.data.label] = mixed_df[self.settings.data.label].shift(-self.settings.data.label_period)
+            mixed_df[self.settings.label] = mixed_df[self.settings.label].shift(-self.settings.label_period)
             mixed_df = mixed_df.dropna()
-            y = pd.DataFrame(mixed_df[self.settings.data.label])
-            if self.settings.training.use_exog is True:
-                x = mixed_df.drop(self.settings.data.label, axis=1)
+            y = pd.DataFrame(mixed_df[self.settings.label])
+            if self.settings.use_exog is True:
+                x = mixed_df.drop(self.settings.label, axis=1)
             else:
                 x = None
             return x, y
@@ -88,7 +72,7 @@ class DataHandler:
         # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_df)
 
     def m4_gen(self):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the m4 datasets')
         training_filename = 'data/m4/Hourly-train.csv'
         test_filename = 'data/m4/Hourly-test.csv'
@@ -105,8 +89,8 @@ class DataHandler:
             row = list(filter(None, row))
             return pd.DataFrame(np.array(row).astype(float), columns=['m4_' + str(idx)])
 
-        training_time_series = _load_m4(training_filename, self.settings.data.m4_time_series_idx)
-        test_time_series = _load_m4(test_filename, self.settings.data.m4_time_series_idx)
+        training_time_series = _load_m4(training_filename, self.settings.m4_time_series_idx)
+        test_time_series = _load_m4(test_filename, self.settings.m4_time_series_idx)
         # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
         test_time_series.index = pd.RangeIndex(start=training_time_series.index[-1] + 1, stop=training_time_series.index[-1] + 1 + len(test_time_series), step=1)
 
@@ -116,10 +100,10 @@ class DataHandler:
             return None, y
 
         self.features_tr.single_output, self.labels_tr.single_output = get_features_labels(training_time_series)
-        # self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.data.forecast_length)
+        # self.features_tr.multioutput, self.labels_tr.multioutput = get_features_labels(training_time_series, self.settings.forecast_length)
 
         self.features_ts.single_output, self.labels_ts.single_output = get_features_labels(test_time_series)
-        # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.data.forecast_length)
+        # self.features_ts.multioutput, self.labels_ts.multioutput = get_features_labels(test_time_series, self.settings.forecast_length)
 
 
 class MealearningDataHandler:
@@ -134,15 +118,15 @@ class MealearningDataHandler:
         self.validation_tasks_indexes = None
         self.test_tasks_indexes = None
 
-        if self.settings.data.dataset == 'm4':
+        if self.settings.dataset == 'm4':
             self.m4_gen()
-        elif self.settings.data.dataset == 'sine':
+        elif self.settings.dataset == 'sine':
             self.synthetic_sine()
         else:
             raise ValueError('Invalid dataset')
 
     def m4_gen(self):
-        if self.settings.training.use_exog is True:
+        if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the m4 datasets')
         training_filename = 'data/m4/Hourly-train.csv'
         test_filename = 'data/m4/Hourly-test.csv'
@@ -175,15 +159,15 @@ class MealearningDataHandler:
             all_full_time_series.append(full_time_series)
 
         # Split the tasks _indexes_ into training/validation/test
-        training_tasks_pct = self.settings.data.training_tasks_pct
-        validation_tasks_pct = self.settings.data.validation_tasks_pct
-        test_tasks_pct = self.settings.data.test_tasks_pct
+        training_tasks_pct = self.settings.training_tasks_pct
+        validation_tasks_pct = self.settings.validation_tasks_pct
+        test_tasks_pct = self.settings.test_tasks_pct
         training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
         validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
 
-        training_points_pct = self.settings.data.training_points_pct
-        validation_points_pct = self.settings.data.validation_points_pct
-        test_points_pct = self.settings.data.test_points_pct
+        training_points_pct = self.settings.training_points_pct
+        validation_points_pct = self.settings.validation_points_pct
+        test_points_pct = self.settings.test_points_pct
 
         def dataset_splits(task_indexes):
             def get_labels(time_series, horizon=1):
@@ -242,8 +226,8 @@ class MealearningDataHandler:
         """
 
     def synthetic_sine(self):
-        if self.settings.training.use_exog is True:
-            raise ValueError('No exogenous variables available for the m4 datasets')
+        if self.settings.use_exog is True:
+            raise ValueError('No exogenous variables available for the sine dataset')
 
         n_time_series = 100
 
@@ -264,15 +248,15 @@ class MealearningDataHandler:
         plt.pause(0.01)
 
         # Split the tasks _indexes_ into training/validation/test
-        training_tasks_pct = self.settings.data.training_tasks_pct
-        validation_tasks_pct = self.settings.data.validation_tasks_pct
-        test_tasks_pct = self.settings.data.test_tasks_pct
+        training_tasks_pct = self.settings.training_tasks_pct
+        validation_tasks_pct = self.settings.validation_tasks_pct
+        test_tasks_pct = self.settings.test_tasks_pct
         training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
         validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
 
-        training_points_pct = self.settings.data.training_points_pct
-        validation_points_pct = self.settings.data.validation_points_pct
-        test_points_pct = self.settings.data.test_points_pct
+        training_points_pct = self.settings.training_points_pct
+        validation_points_pct = self.settings.validation_points_pct
+        test_points_pct = self.settings.test_points_pct
 
         def dataset_splits(task_indexes):
             def get_labels(time_series, horizon=1):

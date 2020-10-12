@@ -80,7 +80,7 @@ def itl(data):
 class ITL:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.training.lags
+        self.lags = settings.lags
 
         self.prediction = None
 
@@ -109,7 +109,7 @@ class ITL:
 
             dims = x_train.shape[1]
 
-            for regularization_parameter in self.settings.training.regularization_parameter_range:
+            for regularization_parameter in self.settings.regularization_parameter_range:
                 #####################################################
                 # Optimisation
                 curr_w = pinv(x_train.T @ x_train + regularization_parameter * eye(dims)) @ x_train.T @ y_train
@@ -149,7 +149,7 @@ class ITL:
             y_train = list_of_tasks[task_idx].training.labels
             y_validation = list_of_tasks[task_idx].validation.labels
             y_test = list_of_tasks[task_idx].test.labels
-            if self.settings.training.use_exog is True:
+            if self.settings.use_exog is True:
                 x_train = list_of_tasks[task_idx].training.features
                 features_tr = lag_features(x_train, self.lags)
 
