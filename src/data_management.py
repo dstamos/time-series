@@ -23,6 +23,11 @@ class DataHandler:
         self.features_ts = namedtuple('features', ['single_output', 'multioutput'])
 
         if self.settings.dataset == 'AirQualityUCI':
+            # data_settings = {'dataset': 'AirQualityUCI',
+            #                  'label': 'CO(GT)',
+            #                  'label_period': 1,
+            #                  'training_percentage': 0.03}
+
             self.air_quality_gen()
         elif self.settings.dataset == 'm4':
             self.m4_gen()
@@ -242,10 +247,10 @@ class MealearningDataHandler:
             curr_ts = curr_ts + np.power(new_level, 0.75) * np.random.randn(len(curr_ts)).reshape(-1, 1)
             all_full_time_series.append(curr_ts)
 
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(all_full_time_series[0])
-        plt.pause(0.01)
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(all_full_time_series[0])
+        # plt.pause(0.01)
 
         # Split the tasks _indexes_ into training/validation/test
         training_tasks_pct = self.settings.training_tasks_pct
