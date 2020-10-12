@@ -252,7 +252,16 @@ class MealearningDataHandler:
 
         all_full_time_series = []
         for time_series_idx in range(n_time_series):
-            all_full_time_series.append(ts)
+            new_level = np.random.randint(1, 100000)
+            amplitude = np.sqrt(new_level)
+            curr_ts = new_level + amplitude * ts
+            curr_ts = curr_ts + np.power(new_level, 0.75) * np.random.randn(len(curr_ts)).reshape(-1, 1)
+            all_full_time_series.append(curr_ts)
+
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(all_full_time_series[0])
+        plt.pause(0.01)
 
         # Split the tasks _indexes_ into training/validation/test
         training_tasks_pct = self.settings.data.training_tasks_pct
@@ -271,7 +280,8 @@ class MealearningDataHandler:
                 # y = time_series.shift(-horizon).pct_change()
 
                 # y = time_series.shift(-horizon)
-                y = time_series.diff()
+                # y = time_series.diff()
+                y = time_series.pct_change().shift(-1)
 
                 # Will dropna later in the feature generation etc
                 # y = y.dropna()

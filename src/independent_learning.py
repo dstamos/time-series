@@ -93,14 +93,14 @@ class ITL:
         for task_idx in range(len(test_tasks)):
             best_val_performance = np.Inf
 
-            ts = test_tasks[task_idx].training.raw_time_series.diff()
+            ts = test_tasks[task_idx].training.raw_time_series.pct_change()
             x_train = lag_features(ts, self.lags, keep_original=False)
             y_train = test_tasks[task_idx].training.labels
             x_train, y_train = prune_data(x_train, y_train)
             x_train = x_train.values
             y_train = y_train.values.ravel()
 
-            ts = test_tasks[task_idx].validation.raw_time_series.diff()
+            ts = test_tasks[task_idx].validation.raw_time_series.pct_change()
             x_val = lag_features(ts, self.lags, keep_original=False)
             y_val = test_tasks[task_idx].validation.labels
             x_val, y_val = prune_data(x_val, y_val)
@@ -132,7 +132,7 @@ class ITL:
                     best_val_perf = val_performance
                     all_val_perf[task_idx] = val_performance
             print('task: %3d | best lambda: %6e | val MSE: %8.5f' % (task_idx, best_regularization_parameter, best_val_perf))
-        print(f'lambda: {np.nan:6e} | val MSE: {np.nanmean(all_val_perf):12.5f}')
+        print(f'lambda: {np.nan:6e} | val MSE: {np.nanmean(all_val_perf):20.16f}')
 
     @staticmethod
     def _performance_check(y_true, y_pred):

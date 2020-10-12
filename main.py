@@ -22,7 +22,7 @@ def main():
                          'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 36)],
                          'lags': 6}
 
-    data_settings = {'dataset': 'm4',
+    data_settings = {'dataset': 'sine',
                      'training_tasks_pct': 0.75,
                      'validation_tasks_pct': 0.05,
                      'test_tasks_pct': 0.2,
@@ -98,11 +98,13 @@ def main():
     itl = ITL(settings)
     itl.fit(data.test_tasks)
 
-
+    # exit()
 
     ##################################################
     model = BiasLTL(settings)
     model.fit(data.training_tasks, data.validation_tasks)
+
+    exit()
     #############################################################################
     model = Xgboost(settings)
     model.fit(data.labels_tr.single_output, data.features_tr.single_output)

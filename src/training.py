@@ -165,7 +165,7 @@ class BiasLTL:
 
                 best_average_vectors = all_average_vectors
                 best_mean_vector = mean_vector
-        print(f'lambda: {np.nan:6e} | val MSE: {best_val_performance:12.5f}')
+        print(f'lambda: {np.nan:6e} | val MSE: {best_val_performance:20.16f}')
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
@@ -206,9 +206,9 @@ class BiasLTL:
     def _handle_data(self, list_of_tasks):
         for task_idx in range(len(list_of_tasks)):
             # The features are based just on the percentage difference of values of the time series
-            raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.diff()
-            raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.diff()
-            raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.diff()
+            raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.pct_change()
+            raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.pct_change()
+            raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.pct_change()
 
             y_train = list_of_tasks[task_idx].training.labels
             y_validation = list_of_tasks[task_idx].validation.labels
@@ -232,8 +232,8 @@ class BiasLTL:
             list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
 
             # Normalise the features
-            # list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
-            # list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1, keepdims=True)
-            # list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
+            list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
+            list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1, keepdims=True)
+            list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
 
         return list_of_tasks
