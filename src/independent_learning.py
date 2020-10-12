@@ -13,27 +13,18 @@ class ITL:
         self.prediction = None
 
     def fit(self, test_tasks):
-        # test_tasks = self._handle_data(test_tasks)
+        test_tasks = self._handle_data(test_tasks)
 
         best_weight_vectors = [None] * len(test_tasks)
         all_val_perf = [None] * len(test_tasks)
 
         for task_idx in range(len(test_tasks)):
             best_val_performance = np.Inf
+            x_train = test_tasks[task_idx].training.features.values
+            y_train = test_tasks[task_idx].training.labels.values.ravel()
 
-            ts = test_tasks[task_idx].training.raw_time_series.pct_change()
-            x_train = lag_features(ts, self.lags, keep_original=False)
-            y_train = test_tasks[task_idx].training.labels
-            x_train, y_train = prune_data(x_train, y_train)
-            x_train = x_train.values
-            y_train = y_train.values.ravel()
-
-            ts = test_tasks[task_idx].validation.raw_time_series.pct_change()
-            x_val = lag_features(ts, self.lags, keep_original=False)
-            y_val = test_tasks[task_idx].validation.labels
-            x_val, y_val = prune_data(x_val, y_val)
-            x_val = x_val.values
-            y_val = y_val.values.ravel()
+            x_val = test_tasks[task_idx].validation.features.values
+            y_val = test_tasks[task_idx].validation.labels.values.ravel()
 
             dims = x_train.shape[1]
 
