@@ -8,8 +8,8 @@ def training(data, training_settings):
     method = training_settings.method
 
     if method == 'ITL':
-        itl = ITL(training_settings)
-        itl.fit(data.test_tasks)
+        model_itl = ITL(training_settings)
+        model_itl.fit(data.test_tasks)
     elif method == 'BiasLTL':
         model = BiasLTL(training_settings)
         model.fit(data.training_tasks, data.validation_tasks)
