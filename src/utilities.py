@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from torch.utils.data import Dataset
 
 
 def lag_features(indicators, lags, keep_original=True):
@@ -49,14 +48,37 @@ def forward_shift_ts(df, horizon_list):
     return df
 
 
-class PandasDataset(Dataset):
-    # TODO Delete this
-    def __init__(self, features_df, labels_df):
-        self.features_df = features_df
-        self.labels_df = labels_df
+def handle_data(list_of_tasks, lags, use_exog):
+    for task_idx in range(len(list_of_tasks)):
+        # The features are based just on the percentage difference of values of the time series
+        raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.pct_change()
+        raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.pct_change()
+        raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.pct_change()
 
-    def __len__(self):
-        return self.features_df[0]
+        y_train = list_of_tasks[task_idx].training.labels
+        y_validation = list_of_tasks[task_idx].validation.labels
+        y_test = list_of_tasks[task_idx].test.labels
+        if use_exog is True:
+            x_train = list_of_tasks[task_idx].training.features
+            features_tr = lag_features(x_train, lags)
 
-    def __getitem__(self, index):
-        return self.features_df.iloc[index].values, self.labels_df.iloc[index].values
+            x_validation = list_of_tasks[task_idx].validation.features
+            features_val = lag_features(x_validation, lags)
+
+            x_test = list_of_tasks[task_idx].test.features
+            features_ts = lag_features(x_test, lags)
+        else:
+            features_tr = lag_features(raw_time_series_tr, lags, keep_original=False)
+            features_val = lag_features(raw_time_series_val, lags, keep_original=False)
+            features_ts = lag_features(raw_time_series_ts, lags, keep_original=False)
+
+        list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
+        list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
+        list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
+
+        # Normalise the features
+        # list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
+        # list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1, keepdims=True)
+        # list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
+
+    return list_of_tasks
