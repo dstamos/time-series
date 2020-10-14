@@ -160,7 +160,7 @@ class MealearningDataHandler:
             # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
             raw_test_time_series.index = pd.RangeIndex(start=raw_training_time_series.index[-1] + 1, stop=raw_training_time_series.index[-1] + 1 + len(raw_test_time_series), step=1)
             full_time_series = pd.concat([raw_training_time_series, raw_test_time_series])
-            # full_time_series = full_time_series[:500]
+            full_time_series = full_time_series[:500]
             all_full_time_series.append(full_time_series)
         # exit()
         # Split the tasks _indexes_ into training/validation/test
@@ -235,18 +235,24 @@ class MealearningDataHandler:
         if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the sine dataset')
 
-        n_time_series = 100
+        n_time_series = 200
 
-        x = np.arange(0, 20 * np.pi, 0.1)   # start,stop,step
+        x = np.linspace(0, 20 * np.pi, 100)
         ts = pd.DataFrame(np.sin(x), columns=['sine'])
+        # ts = ts[:200]
 
         all_full_time_series = []
         for time_series_idx in range(n_time_series):
             new_level = np.random.randint(1, 100000)
+            # new_level = 100
             amplitude = np.sqrt(new_level)
             curr_ts = new_level + amplitude * ts
             # Adding noise
-            curr_ts = curr_ts + np.power(new_level, 0.2) * np.random.randn(len(curr_ts)).reshape(-1, 1)
+            curr_ts = curr_ts + 1 * np.random.randn(len(curr_ts)).reshape(-1, 1)
+            # curr_ts = curr_ts
+            # import matplotlib.pyplot as plt
+            # plt.plot(curr_ts)
+            # plt.show()
             all_full_time_series.append(curr_ts)
 
         # import matplotlib.pyplot as plt

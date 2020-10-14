@@ -37,7 +37,7 @@ class BiasLTL:
                 x_train = training_tasks[task_idx].training.features.values
                 y_train = training_tasks[task_idx].training.labels.values.ravel()
 
-                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=1)
+                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=10)
                 all_average_vectors.append(mean_vector)
             #####################################################
             # Validation only needs to be measured at the very end, after we've trained on all training tasks
@@ -100,6 +100,7 @@ class BiasLTL:
                         validation_criterion = False
 
                     if validation_criterion:
+                        best_val_performance = validation_performance
                         best_w = w
 
                 x_test = test_tasks[task_idx].test.features.values
@@ -118,21 +119,21 @@ class BiasLTL:
 
         print(f'lambda: {np.nan:6e} | test MSE: {np.nanmean(all_test_perf):20.16f}')
 
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.plot(y_test)
-        # plt.plot(curr_prediction)
-        # plt.pause(0.1)
-        #
-        # import matplotlib.pyplot as plt
-        # plt.figure()
-        # plt.plot(test_per_per_training_task)
-        # plt.pause(0.01)
-        # plt.show()
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(y_test)
+        plt.plot(curr_prediction)
+        plt.pause(0.1)
+
+        import matplotlib.pyplot as plt
+        plt.figure()
+        plt.plot(test_per_per_training_task)
+        plt.pause(0.01)
+        plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
-        step_size_bit = 1
+        step_size_bit = 1e+3
         n = len(y)
 
         def grad(curr_h):
