@@ -160,9 +160,9 @@ class MealearningDataHandler:
             # The m4 dataset doesn't seem to offer timestamps so we use integers as indexes
             raw_test_time_series.index = pd.RangeIndex(start=raw_training_time_series.index[-1] + 1, stop=raw_training_time_series.index[-1] + 1 + len(raw_test_time_series), step=1)
             full_time_series = pd.concat([raw_training_time_series, raw_test_time_series])
-            full_time_series = full_time_series[:200]
+            # full_time_series = full_time_series[:500]
             all_full_time_series.append(full_time_series)
-
+        # exit()
         # Split the tasks _indexes_ into training/validation/test
         training_tasks_pct = self.settings.training_tasks_pct
         validation_tasks_pct = self.settings.validation_tasks_pct
@@ -176,7 +176,8 @@ class MealearningDataHandler:
 
         def dataset_splits(task_indexes):
             def get_labels(time_series, horizon=1):
-                y = (time_series - time_series.shift(-horizon)) / time_series
+                # y = (time_series - time_series.shift(-horizon)) / time_series
+                y = time_series.pct_change().shift(-horizon)
                 # Will dropna later in the feature generation etc
                 # y = y.dropna()
                 return y
@@ -191,19 +192,19 @@ class MealearningDataHandler:
 
                 training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 training.features = None
-                training.labels = get_labels(training_time_series, horizon=12)
+                training.labels = get_labels(training_time_series, horizon=self.settings.forecast_length)
                 training.raw_time_series = training_time_series
                 training.n_points = len(training.labels)
 
                 validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 validation.features = None
-                validation.labels = get_labels(validation_time_series, horizon=12)
+                validation.labels = get_labels(validation_time_series, horizon=self.settings.forecast_length)
                 validation.raw_time_series = validation_time_series
                 validation.n_points = len(validation.labels)
 
                 test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 test.features = None
-                test.labels = get_labels(test_time_series, horizon=12)
+                test.labels = get_labels(test_time_series, horizon=self.settings.forecast_length)
                 test.raw_time_series = test_time_series
                 test.n_points = len(test.labels)
 
@@ -244,7 +245,8 @@ class MealearningDataHandler:
             new_level = np.random.randint(1, 100000)
             amplitude = np.sqrt(new_level)
             curr_ts = new_level + amplitude * ts
-            curr_ts = curr_ts + np.power(new_level, 0.75) * np.random.randn(len(curr_ts)).reshape(-1, 1)
+            # Adding noise
+            curr_ts = curr_ts + np.power(new_level, 0.2) * np.random.randn(len(curr_ts)).reshape(-1, 1)
             all_full_time_series.append(curr_ts)
 
         # import matplotlib.pyplot as plt

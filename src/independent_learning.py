@@ -37,7 +37,7 @@ class ITL:
 
                 #####################################################
                 # Validation
-                val_performance = mean_squared_error(y_val, x_val @ curr_w)
+                val_performance = self._performance_check(y_val, x_val @ curr_w)
 
                 if val_performance < best_val_performance:
                     validation_criterion = True
@@ -66,13 +66,16 @@ class ITL:
             y_test = test_tasks[task_idx].test.labels.values.ravel()
 
             curr_prediction = x_test @ self.best_weight_vectors[task_idx]
-            test_performance = mean_squared_error(y_test, curr_prediction)
+            test_performance = self._performance_check(y_test, curr_prediction)
             all_test_perf.append(test_performance)
             predictions.append(curr_prediction)
         self.predictions = predictions
         self.all_test_perf = all_test_perf
+        print(f'lambda: {np.nan:6e} | test MSE: {np.nanmean(all_test_perf):20.16f}')
 
     @staticmethod
     def _performance_check(y_true, y_pred):
-        from sklearn.metrics import mean_squared_error
-        return mean_squared_error(y_true, y_pred)
+        # Make sure that if y_true is 0 then you return 0
+        rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
+        mape = (100 / len(y_true)) * np.sum(rel_error)
+        return mape

@@ -1,5 +1,5 @@
 import numpy as np
-from src.utilities import lag_features, prune_data
+from src.utilities import handle_data
 from numpy.linalg.linalg import norm, pinv, matrix_power
 
 
@@ -10,11 +10,14 @@ class BiasLTL:
 
         self.all_metaparameters = None
         self.final_metaparameters = None
-        self.prediction = None
+
+        self.predictions = None
+        self.all_test_perf = None
+        self.test_per_per_training_task = None
 
     def fit(self, training_tasks, validation_tasks):
-        training_tasks = self._handle_data(training_tasks)
-        validation_tasks = self._handle_data(validation_tasks)
+        training_tasks = handle_data(training_tasks, self.lags, self.settings.use_exog)
+        validation_tasks = handle_data(validation_tasks, self.lags, self.settings.use_exog)
 
         dims = training_tasks[0].training.features.shape[1]
 
@@ -34,20 +37,25 @@ class BiasLTL:
                 x_train = training_tasks[task_idx].training.features.values
                 y_train = training_tasks[task_idx].training.labels.values.ravel()
 
-                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=3)
+                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=1)
                 all_average_vectors.append(mean_vector)
             #####################################################
             # Validation only needs to be measured at the very end, after we've trained on all training tasks
             for validation_task_idx in range(len(validation_tasks)):
                 x_train = validation_tasks[validation_task_idx].training.features.values
                 y_train = validation_tasks[validation_task_idx].training.labels.values.ravel()
-                w = self._solve_wrt_w(mean_vector, x_train, y_train, regularization_parameter)
-
+                # FIXME The validation of the validation tasks is going unused here
                 x_test = validation_tasks[validation_task_idx].test.features.values
                 y_test = validation_tasks[validation_task_idx].test.labels.values.ravel()
 
-                validation_perf = self._performance_check(y_test, x_test @ w)
-                validation_performances.append(validation_perf)
+                temp_best_val_perf = np.Inf
+                for temp_regul_param in self.settings.regularization_parameter_range:
+                    w = self._solve_wrt_w(mean_vector, x_train, y_train, temp_regul_param)
+
+                    temp_val_perf = self._performance_check(y_test, x_test @ w)
+                    if temp_val_perf < temp_best_val_perf:
+                        temp_best_val_perf = temp_val_perf
+                validation_performances.append(temp_best_val_perf)
             validation_performance = np.mean(validation_performances)
             print(f'lambda: {regularization_parameter:6e} | val MSE: {validation_performance:12.5f}')
 
@@ -65,9 +73,66 @@ class BiasLTL:
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
+    def predict(self, test_tasks):
+        test_per_per_training_task = []
+        import time
+        tt = time.time()
+        for meta_param_idx in range(len(self.all_metaparameters)):
+            meta_param = self.all_metaparameters[meta_param_idx]
+            all_test_perf = []
+            predictions = []
+            for task_idx in range(len(test_tasks)):
+                x_train = test_tasks[task_idx].training.features.values
+                y_train = test_tasks[task_idx].training.labels.values.ravel()
+
+                x_val = test_tasks[task_idx].validation.features.values
+                y_val = test_tasks[task_idx].validation.labels.values.ravel()
+
+                best_val_performance = np.Inf
+                for regularization_parameter in self.settings.regularization_parameter_range:
+                    w = self._solve_wrt_w(meta_param, x_train, y_train, regularization_parameter)
+
+                    curr_prediction = x_val @ w
+                    validation_performance = self._performance_check(y_val, curr_prediction)
+                    if validation_performance < best_val_performance:
+                        validation_criterion = True
+                    else:
+                        validation_criterion = False
+
+                    if validation_criterion:
+                        best_w = w
+
+                x_test = test_tasks[task_idx].test.features.values
+                y_test = test_tasks[task_idx].test.labels.values.ravel()
+                curr_prediction = x_test @ best_w
+                test_performance = self._performance_check(y_test, curr_prediction)
+
+                all_test_perf.append(test_performance)
+                predictions.append(curr_prediction)
+            avg_perf = float(np.mean(all_test_perf))
+            test_per_per_training_task.append(avg_perf)
+            print('%3d | %16.12f | %5.3f' % (meta_param_idx, avg_perf, time.time() - tt))
+        self.predictions = predictions
+        self.all_test_perf = all_test_perf
+        self.test_per_per_training_task = test_per_per_training_task
+
+        print(f'lambda: {np.nan:6e} | test MSE: {np.nanmean(all_test_perf):20.16f}')
+
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(y_test)
+        # plt.plot(curr_prediction)
+        # plt.pause(0.1)
+        #
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(test_per_per_training_task)
+        # plt.pause(0.01)
+        # plt.show()
+
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
-        step_size_bit = 1e+3
+        step_size_bit = 1
         n = len(y)
 
         def grad(curr_h):
@@ -96,40 +161,7 @@ class BiasLTL:
 
     @staticmethod
     def _performance_check(y_true, y_pred):
-        from sklearn.metrics import mean_squared_error
-        return mean_squared_error(y_true, y_pred)
-
-    def _handle_data(self, list_of_tasks):
-        for task_idx in range(len(list_of_tasks)):
-            # The features are based just on the percentage difference of values of the time series
-            raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.pct_change()
-            raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.pct_change()
-            raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.pct_change()
-
-            y_train = list_of_tasks[task_idx].training.labels
-            y_validation = list_of_tasks[task_idx].validation.labels
-            y_test = list_of_tasks[task_idx].test.labels
-            if self.settings.use_exog is True:
-                x_train = list_of_tasks[task_idx].training.features
-                features_tr = lag_features(x_train, self.lags)
-
-                x_validation = list_of_tasks[task_idx].validation.features
-                features_val = lag_features(x_validation, self.lags)
-
-                x_test = list_of_tasks[task_idx].test.features
-                features_ts = lag_features(x_test, self.lags)
-            else:
-                features_tr = lag_features(raw_time_series_tr, self.lags, keep_original=False)
-                features_val = lag_features(raw_time_series_val, self.lags, keep_original=False)
-                features_ts = lag_features(raw_time_series_ts, self.lags, keep_original=False)
-
-            list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
-            list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
-            list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
-
-            # Normalise the features
-            list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
-            list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1, keepdims=True)
-            list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
-
-        return list_of_tasks
+        # Make sure that if y_true is 0 then you return 0
+        rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
+        mape = (100 / len(y_true)) * np.sum(rel_error)
+        return mape

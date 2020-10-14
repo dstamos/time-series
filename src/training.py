@@ -13,6 +13,7 @@ def training(data, training_settings):
     elif method == 'BiasLTL':
         model = BiasLTL(training_settings)
         model.fit(data.training_tasks, data.validation_tasks)
+        model.predict(data.test_tasks)
     elif method == 'SARIMAX':
         pass
         # model = Sarimax(settings)

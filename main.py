@@ -8,15 +8,15 @@ def main():
     # training_settings = {'method': 'SARIMAX',
     #                      'use_exog': False}
 
-    data_settings = {'dataset': 'sine',
+    data_settings = {'dataset': 'm4',
                      'use_exog': False,
-                     'training_tasks_pct': 0.75,
-                     'validation_tasks_pct': 0.05,
+                     'training_tasks_pct': 0.7,
+                     'validation_tasks_pct': 0.1,
                      'test_tasks_pct': 0.2,
-                     'training_points_pct': 0.3,
-                     'validation_points_pct': 0.3,
+                     'training_points_pct': 0.5,
+                     'validation_points_pct': 0.1,
                      'test_points_pct': 0.4,
-                     'forecast_length': 6}
+                     'forecast_length': 1}
 
     data_settings = Settings(data_settings)
     data = MealearningDataHandler(data_settings)
@@ -24,21 +24,19 @@ def main():
     training_settings = Settings({'method': 'ITL',
                                   'use_exog': False,
                                   'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 36)],
-                                  'lags': 6})
+                                  'lags': 5})
 
     training(data, training_settings)
     #############################################################################
     training_settings = Settings({'method': 'BiasLTL',
                                   'use_exog': False,
                                   'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 36)],
-                                  'lags': 6})
+                                  'lags': 5})
 
     training(data, training_settings)
 
     # TODO
     """
-    .fit for ITL
-    .fit for LTL
     SARIMAX
     xgboost
     

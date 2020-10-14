@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from numpy.linalg.linalg import norm
 
 
 def lag_features(indicators, lags, keep_original=True):
