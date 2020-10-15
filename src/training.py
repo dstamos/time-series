@@ -15,9 +15,9 @@ def training(data, training_settings):
         model.fit(data.training_tasks, data.validation_tasks)
         model.predict(data.test_tasks)
     elif method == 'SARIMAX':
-        pass
-        # model = Sarimax(settings)
-        #
+        model = Sarimax(training_settings)
+        model.fit(data.test_tasks)
+        model.predict(data.test_tasks)
         # if settings.training.use_exog is True:
         #     model.fit(data.labels_tr.single_output, exog_variables=data.features_tr.single_output)
         #     foreward_periods = 24 * 6

@@ -14,6 +14,7 @@ class Settings:
     def __init__(self, dictionary):
         self.__dict__.update(**dictionary)
 
+
 class DataHandler:
     def __init__(self, settings):
         self.settings = settings
@@ -235,7 +236,7 @@ class MealearningDataHandler:
         if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the sine dataset')
 
-        n_time_series = 200
+        n_time_series = 10
 
         x = np.linspace(0, 20 * np.pi, 100)
         ts = pd.DataFrame(np.sin(x), columns=['sine'])
