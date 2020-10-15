@@ -12,7 +12,7 @@ class ITL:
 
         self.best_weight_vectors = None
         self.all_test_perf = None
-        self.predictions = None
+        self.all_predictions = None
 
     def fit(self, test_tasks):
         test_tasks = handle_data(test_tasks, self.lags, self.settings.use_exog)
@@ -52,9 +52,9 @@ class ITL:
                     best_regularization_parameter = regularization_parameter
                     best_val_perf = val_performance
                     all_val_perf[task_idx] = val_performance
-            print('task: %3d | best lambda: %6e | val MSE: %8.5f' % (task_idx, best_regularization_parameter, best_val_perf))
+            print('task: %3d | best lambda: %6e | val performance: %8.5f' % (task_idx, best_regularization_parameter, best_val_perf))
         self.best_weight_vectors = best_weight_vectors
-        print(f'lambda: {np.nan:6e} | val MSE: {np.nanmean(all_val_perf):20.16f}')
+        print(f'lambda: {np.nan:6e} | val performance: {np.nanmean(all_val_perf):20.16f}')
 
         self._predict(test_tasks)
 
@@ -69,9 +69,9 @@ class ITL:
             test_performance = self._performance_check(y_test, curr_prediction)
             all_test_perf.append(test_performance)
             predictions.append(curr_prediction)
-        self.predictions = predictions
+        self.all_predictions = predictions
         self.all_test_perf = all_test_perf
-        print(f'lambda: {np.nan:6e} | test MSE: {np.nanmean(all_test_perf):20.16f}')
+        print(f'lambda: {np.nan:6e} | test performance: {np.nanmean(all_test_perf):20.16f}')
 
     @staticmethod
     def _performance_check(y_true, y_pred):

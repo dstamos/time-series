@@ -236,24 +236,20 @@ class MealearningDataHandler:
         if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the sine dataset')
 
-        n_time_series = 10
+        n_time_series = 100
+        n_points = 200
 
-        x = np.linspace(0, 20 * np.pi, 100)
+        x = np.linspace(0, 20 * np.pi, n_points)
         ts = pd.DataFrame(np.sin(x), columns=['sine'])
         # ts = ts[:200]
 
         all_full_time_series = []
         for time_series_idx in range(n_time_series):
             new_level = np.random.randint(1, 100000)
-            # new_level = 100
             amplitude = np.sqrt(new_level)
             curr_ts = new_level + amplitude * ts
             # Adding noise
-            curr_ts = curr_ts + 1 * np.random.randn(len(curr_ts)).reshape(-1, 1)
-            # curr_ts = curr_ts
-            # import matplotlib.pyplot as plt
-            # plt.plot(curr_ts)
-            # plt.show()
+            curr_ts = curr_ts + (amplitude / 10) * np.random.randn(len(curr_ts)).reshape(-1, 1)
             all_full_time_series.append(curr_ts)
 
         # import matplotlib.pyplot as plt

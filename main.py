@@ -18,24 +18,24 @@ def main():
     data_settings = Settings(data_settings)
     data = MealearningDataHandler(data_settings)
     #############################################################################
-    # training_settings = Settings({'method': 'ITL',
-    #                               'use_exog': False,
-    #                               'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 6)],
-    #                               'lags': 3})
+    training_settings = Settings({'method': 'ITL',
+                                  'use_exog': False,
+                                  'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 6)],
+                                  'lags': 3})
     #
-    # training(data, training_settings)
+    model_itl = training(data, training_settings)
     #############################################################################
-    # training_settings = Settings({'method': 'BiasLTL',
-    #                               'use_exog': False,
-    #                               'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 6)],
-    #                               'lags': 3})
+    training_settings = Settings({'method': 'BiasLTL',
+                                  'use_exog': False,
+                                  'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 6)],
+                                  'lags': 3})
     #
-    # training(data, training_settings)
+    model_ltl = training(data, training_settings)
     #############################################################################
     training_settings = Settings({'method': 'SARIMAX',
                                   'use_exog': False})
 
-    training(data, training_settings)
+    model_sarimax = training(data, training_settings)
     # TODO
     """
     SARIMAX
