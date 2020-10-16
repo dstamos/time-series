@@ -61,19 +61,19 @@ class Sarimax:
             curr_predictions = self.all_models[task_idx].forecast(steps=len(test_time_series), exog_variables=exog_variables)
             test_performance = self._performance_check(test_time_series.values.ravel(), curr_predictions.values.ravel())
             all_predictions.append(curr_predictions)
-            self.all_predictions = all_predictions
             all_test_perf.append(test_performance)
+        self.all_predictions = all_predictions
         self.all_test_perf = all_test_perf
         print(f'test performance: {np.nanmean(all_test_perf):20.16f}')
 
-        import matplotlib.pyplot as plt
-        plt.figure()
-        for i in range(len(test_tasks)):
-            plt.plot(test_tasks[i].test.raw_time_series, 'tab:blue')
-            plt.plot(all_predictions[i], 'tab:red')
-            plt.pause(0.01)
-            plt.show()
-        k = 1
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # for i in range(len(test_tasks)):
+        #     plt.plot(test_tasks[i].test.raw_time_series, 'tab:blue')
+        #     plt.plot(all_predictions[i], 'tab:red')
+        #     plt.pause(0.01)
+        #     plt.show()
+        # k = 1
 
     @staticmethod
     def _performance_check(y_true, y_pred):

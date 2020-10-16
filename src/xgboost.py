@@ -42,7 +42,7 @@ class Xgboost:
                       'booster': 'dart',
                       'min_child_weight': 2,
                       'nthread': mp.cpu_count()-1}
-            model = xgboost.train(params, dmatrix, num_boost_round=500, callbacks=[heartbeat()])
+            model = xgboost.train(params, dmatrix, num_boost_round=500, callbacks=[])
             all_models.append(model)
             print('xgboost | task: %3d | time: %8.5fsec' % (task_idx, time.time() - tt))
         self.all_models = all_models

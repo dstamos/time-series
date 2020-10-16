@@ -74,6 +74,7 @@ class BiasLTL:
         self.final_metaparameters = best_mean_vector
 
     def predict(self, test_tasks):
+        test_tasks = handle_data(test_tasks, self.lags, self.settings.use_exog)
         test_per_per_training_task = []
         import time
         tt = time.time()
