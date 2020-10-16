@@ -44,7 +44,7 @@ class Sarimax:
                 model = model.fit(disp=0, maxiter=150)
             all_models.append(model)
             self.all_models = all_models
-            print('task: %3d | time: %8.5fsec' % (task_idx, time.time() - tt))
+            print('SARIMAX | task: %3d | time: %8.5fsec' % (task_idx, time.time() - tt))
 
     def predict(self, test_tasks, exog_variables=None, foreward_periods=1):
         # if self.settings.use_exog is True:

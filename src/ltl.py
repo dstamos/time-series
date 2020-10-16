@@ -57,7 +57,7 @@ class BiasLTL:
                         temp_best_val_perf = temp_val_perf
                 validation_performances.append(temp_best_val_perf)
             validation_performance = np.mean(validation_performances)
-            print(f'lambda: {regularization_parameter:6e} | val performance: {validation_performance:12.5f}')
+            print(f'LTL | lambda: {regularization_parameter:6e} | val performance: {validation_performance:12.5f}')
 
             if validation_performance < best_val_performance:
                 validation_criterion = True
@@ -69,7 +69,7 @@ class BiasLTL:
 
                 best_average_vectors = all_average_vectors
                 best_mean_vector = mean_vector
-        print(f'lambda: {np.nan:6e} | val performance: {best_val_performance:20.16f}')
+        print(f'LTL | lambda: {np.nan:6e} | val performance: {best_val_performance:20.16f}')
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
@@ -112,7 +112,7 @@ class BiasLTL:
                 predictions.append(curr_prediction)
             avg_perf = float(np.mean(all_test_perf))
             test_per_per_training_task.append(avg_perf)
-            print('%3d | %16.12f | %5.3f' % (meta_param_idx, avg_perf, time.time() - tt))
+            print('%3d | %16.12f | %5.3fsec' % (meta_param_idx, avg_perf, time.time() - tt))
         self.all_predictions = predictions
         self.all_test_perf = all_test_perf
         self.test_per_per_training_task = test_per_per_training_task
