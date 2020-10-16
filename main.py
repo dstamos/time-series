@@ -18,12 +18,12 @@ def main():
     data_settings = Settings(data_settings)
     data = MealearningDataHandler(data_settings)
     #############################################################################
-    # training_settings = Settings({'method': 'ITL',
-    #                               'use_exog': False,
-    #                               'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 16)],
-    #                               'lags': 3})
-    # #
-    # model_itl = training(data, training_settings)
+    training_settings = Settings({'method': 'ITL',
+                                  'use_exog': False,
+                                  'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 16)],
+                                  'lags': 3})
+    #
+    model_itl = training(data, training_settings)
     #############################################################################
     # training_settings = Settings({'method': 'BiasLTL',
     #                               'use_exog': False,
