@@ -1,5 +1,5 @@
 from numpy import identity as eye
-from sklearn.metrics import mean_squared_error
+import pandas as pd
 import numpy as np
 from src.utilities import handle_data
 from numpy.linalg.linalg import pinv
@@ -65,8 +65,8 @@ class ITL:
             x_test = test_tasks[task_idx].test.features.values
             y_test = test_tasks[task_idx].test.labels.values.ravel()
 
-            curr_prediction = x_test @ self.best_weight_vectors[task_idx]
-            test_performance = self._performance_check(y_test, curr_prediction)
+            curr_prediction = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=test_tasks[task_idx].test.labels.index)
+            test_performance = self._performance_check(y_test, curr_prediction.values.ravel())
             all_test_perf.append(test_performance)
             predictions.append(curr_prediction)
         self.all_predictions = predictions

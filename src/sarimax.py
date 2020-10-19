@@ -80,6 +80,7 @@ class Sarimax:
             all_forecasts.append(curr_forecast)
             all_test_perf.append(test_performance)
         self.all_predictions = all_predictions
+        self.all_forecasts = all_forecasts
         self.all_test_perf = all_test_perf
         print(f'test performance: {np.nanmean(all_test_perf):20.16f}')
 
