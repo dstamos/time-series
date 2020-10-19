@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pandas as pd
+import statsmodels.api as sm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
@@ -18,6 +19,7 @@ class Sarimax:
 
         self.all_models = None
         self.all_predictions = None
+        self.all_forecasts = None
         self.all_test_perf = None
 
     def fit(self, test_tasks, exog_variables=None):
@@ -55,12 +57,27 @@ class Sarimax:
         exog_variables = None
 
         all_predictions = []
+        all_forecasts = []
         all_test_perf = []
         for task_idx in range(len(test_tasks)):
+            model = self.all_models[task_idx]
             test_time_series = test_tasks[task_idx].test.raw_time_series
-            curr_predictions = self.all_models[task_idx].forecast(steps=len(test_time_series), exog_variables=exog_variables)
+            curr_forecast = model.forecast(steps=len(test_time_series), exog_variables=exog_variables)
+
+            tr_time_series = test_tasks[task_idx].training.raw_time_series
+            val_time_series = test_tasks[task_idx].validation.raw_time_series
+            time_series = pd.concat([tr_time_series, val_time_series, test_time_series])
+
+            mod = SARIMAX(time_series, exog=exog_variables,
+                          order=(self.ar_order, self.difference_order, self.ma_order),
+                          seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
+            res = mod.filter(model.params)
+            insample = res.predict()
+            curr_predictions = insample.loc[test_time_series.index]
+
             test_performance = self._performance_check(test_time_series.values.ravel(), curr_predictions.values.ravel())
             all_predictions.append(curr_predictions)
+            all_forecasts.append(curr_forecast)
             all_test_perf.append(test_performance)
         self.all_predictions = all_predictions
         self.all_test_perf = all_test_perf
@@ -69,11 +86,12 @@ class Sarimax:
         # import matplotlib.pyplot as plt
         # plt.figure()
         # for i in range(len(test_tasks)):
-        #     plt.plot(test_tasks[i].test.raw_time_series, 'tab:blue')
-        #     plt.plot(all_predictions[i], 'tab:red')
+        #     plt.plot(test_tasks[i].test.raw_time_series, 'k', label='raw ts')
+        #     plt.plot(all_predictions[i], 'tab:red', label='predictions')
+        #     plt.plot(all_forecasts[i], 'tab:blue', label='forecasts')
+        #     plt.legend()
         #     plt.pause(0.01)
         #     plt.show()
-        # k = 1
 
     @staticmethod
     def _performance_check(y_true, y_pred):
