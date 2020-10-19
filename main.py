@@ -26,14 +26,14 @@ def main():
 
     model_itl = training(data, training_settings)
     #############################################################################
-    # np.random.seed(999)
-    # data = MealearningDataHandler(data_settings)
-    # training_settings = Settings({'method': 'BiasLTL',
-    #                               'use_exog': False,
-    #                               'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 16)],
-    #                               'lags': 6})
-    #
-    # model_ltl = training(data, training_settings)
+    np.random.seed(999)
+    data = MealearningDataHandler(data_settings)
+    training_settings = Settings({'method': 'BiasLTL',
+                                  'use_exog': False,
+                                  'regularization_parameter_range': [10 ** float(i) for i in np.linspace(-12, 2, 16)],
+                                  'lags': 6})
+
+    model_ltl = training(data, training_settings)
     #############################################################################
     np.random.seed(999)
     data = MealearningDataHandler(data_settings)
@@ -42,13 +42,13 @@ def main():
 
     model_sarimax = training(data, training_settings)
     #############################################################################
-    # np.random.seed(999)
-    # data = MealearningDataHandler(data_settings)
-    # training_settings = Settings({'method': 'xgboost',
-    #                               'use_exog': False,
-    #                               'lags': 3})
-    #
-    # model_xgboost = training(data, training_settings)
+    np.random.seed(999)
+    data = MealearningDataHandler(data_settings)
+    training_settings = Settings({'method': 'xgboost',
+                                  'use_exog': False,
+                                  'lags': 6})
+
+    model_xgboost = training(data, training_settings)
     #############################################################################
 
     def labels_to_raw(labels, first):
@@ -77,15 +77,17 @@ def main():
     ax.plot(model_sarimax.all_predictions[task_idx], color='tab:red', label='SARIMAX predictions')
     ax.plot(model_sarimax.all_forecasts[task_idx], color='tab:orange', label='SARIMAX forecasts')
 
-    # lab = model_xgboost.all_predictions[task_idx]
-    # first = data.test_tasks[task_idx].test.raw_time_series.values[2]
-    # r = labels_to_raw(lab, first)
-    # ax.plot(r, color='tab:green', label='Random Forest')
+    lab = model_xgboost.all_predictions[task_idx]
+    first_idx = data.test_tasks[task_idx].test.raw_time_series.index.get_loc(lab.index[0]) - 1
+    first_value = data.test_tasks[task_idx].test.raw_time_series.iloc[first_idx].values[0]
+    r = labels_to_raw(lab, first_value)
+    ax.plot(r, color='tab:green', label='Random Forest')
 
-    # lab = model_ltl.all_predictions[task_idx]
-    # first = data.test_tasks[task_idx].test.raw_time_series.values[2]
-    # r = labels_to_raw(lab, first)
-    # ax.plot(r, color='tab:purple', label='BiasLTL')
+    lab = model_ltl.all_predictions[task_idx]
+    first_idx = data.test_tasks[task_idx].test.raw_time_series.index.get_loc(lab.index[0]) - 1
+    first_value = data.test_tasks[task_idx].test.raw_time_series.iloc[first_idx].values[0]
+    r = labels_to_raw(lab, first_value)
+    ax.plot(r, color='tab:purple', label='BiasLTL')
 
     plt.title('test task #' + str(task_idx))
     plt.legend()

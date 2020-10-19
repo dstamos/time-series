@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from src.utilities import handle_data
 from numpy.linalg.linalg import norm, pinv, matrix_power
 
@@ -106,31 +107,28 @@ class BiasLTL:
 
                 x_test = test_tasks[task_idx].test.features.values
                 y_test = test_tasks[task_idx].test.labels.values.ravel()
-                curr_prediction = x_test @ best_w
-                test_performance = self._performance_check(y_test, curr_prediction)
+                curr_prediction = pd.Series(x_test @ best_w, index=test_tasks[task_idx].test.labels.index)
+                test_performance = self._performance_check(y_test, curr_prediction.values.ravel())
 
                 all_test_perf.append(test_performance)
                 predictions.append(curr_prediction)
             avg_perf = float(np.mean(all_test_perf))
             test_per_per_training_task.append(avg_perf)
-            print('%3d | %16.12f | %5.3fsec' % (meta_param_idx, avg_perf, time.time() - tt))
         self.all_predictions = predictions
         self.all_test_perf = all_test_perf
         self.test_per_per_training_task = test_per_per_training_task
 
-        print(f'lambda: {np.nan:6e} | test performance: {np.nanmean(all_test_perf):20.16f}')
-
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(y_test)
-        plt.plot(curr_prediction)
-        plt.pause(0.1)
-
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(test_per_per_training_task)
-        plt.pause(0.01)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(y_test)
+        # plt.plot(curr_prediction)
+        # plt.pause(0.1)
+        #
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(test_per_per_training_task)
+        # plt.pause(0.01)
+        # plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):

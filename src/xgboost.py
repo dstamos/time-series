@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from src.utilities import handle_data
 import xgboost
 import multiprocess as mp
@@ -57,20 +58,18 @@ class Xgboost:
 
             x_test = xgboost.DMatrix(x_test)
 
-            curr_prediction = self.all_models[task_idx].predict(x_test)
-            test_performance = self._performance_check(y_test, curr_prediction)
+            curr_prediction = pd.Series(self.all_models[task_idx].predict(x_test), index=test_tasks[task_idx].test.labels.index)
+            test_performance = self._performance_check(y_test, curr_prediction.values.ravel())
             all_test_perf.append(test_performance)
             predictions.append(curr_prediction)
         self.all_predictions = predictions
         self.all_test_perf = all_test_perf
-        print(f'xgboost | lambda: {np.nan:6e} | test performance: {np.nanmean(all_test_perf):20.16f}')
 
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(y_test)
-        plt.plot(curr_prediction)
-        plt.pause(0.1)
-        k = 1
+        # import matplotlib.pyplot as plt
+        # plt.figure()
+        # plt.plot(y_test)
+        # plt.plot(curr_prediction)
+        # plt.pause(0.1)
 
     @staticmethod
     def _performance_check(y_true, y_pred):

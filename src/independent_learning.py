@@ -71,7 +71,6 @@ class ITL:
             predictions.append(curr_prediction)
         self.all_predictions = predictions
         self.all_test_perf = all_test_perf
-        print(f'lambda: {np.nan:6e} | test performance: {np.nanmean(all_test_perf):20.16f}')
 
     @staticmethod
     def _performance_check(y_true, y_pred):
