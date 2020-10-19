@@ -51,16 +51,6 @@ def main():
     model_xgboost = training(data, training_settings)
     #############################################################################
 
-    def labels_to_raw(labels, first):
-        raw_predictions = pd.Series(index=labels.index)
-        raw = first
-        for idx in range(len(labels)):
-            label = labels.iloc[idx]
-            raw = raw + raw * label
-
-            raw_predictions.iloc[idx] = raw
-        return raw_predictions
-
     import matplotlib.pyplot as plt
     my_dpi = 100
     fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
@@ -68,26 +58,14 @@ def main():
     task_idx = 0
     ax.plot(data.test_tasks[task_idx].test.raw_time_series, color='k', label='original time series')
 
-    lab = model_itl.all_predictions[task_idx]
-    first_idx = data.test_tasks[task_idx].test.raw_time_series.index.get_loc(lab.index[0]) - 1
-    first_value = data.test_tasks[task_idx].test.raw_time_series.iloc[first_idx].values[0]
-    r = labels_to_raw(lab, first_value)
-    ax.plot(r, color='tab:blue', label='ITL')
+    ax.plot(model_itl.all_raw_predictions[task_idx], color='tab:blue', label='ITL')
 
     ax.plot(model_sarimax.all_predictions[task_idx], color='tab:red', label='SARIMAX predictions')
     ax.plot(model_sarimax.all_forecasts[task_idx], color='tab:orange', label='SARIMAX forecasts')
 
-    lab = model_xgboost.all_predictions[task_idx]
-    first_idx = data.test_tasks[task_idx].test.raw_time_series.index.get_loc(lab.index[0]) - 1
-    first_value = data.test_tasks[task_idx].test.raw_time_series.iloc[first_idx].values[0]
-    r = labels_to_raw(lab, first_value)
-    ax.plot(r, color='tab:green', label='Random Forest')
+    ax.plot(model_xgboost.all_raw_predictions[task_idx], color='tab:green', label='Random Forest')
 
-    lab = model_ltl.all_predictions[task_idx]
-    first_idx = data.test_tasks[task_idx].test.raw_time_series.index.get_loc(lab.index[0]) - 1
-    first_value = data.test_tasks[task_idx].test.raw_time_series.iloc[first_idx].values[0]
-    r = labels_to_raw(lab, first_value)
-    ax.plot(r, color='tab:purple', label='BiasLTL')
+    ax.plot(model_ltl.all_raw_predictions[task_idx], color='tab:purple', label='BiasLTL')
 
     plt.title('test task #' + str(task_idx))
     plt.legend()

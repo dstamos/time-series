@@ -46,7 +46,7 @@ class Sarimax:
                 model = model.fit(disp=0, maxiter=150)
             all_models.append(model)
             self.all_models = all_models
-            print('SARIMAX | task: %3d | time: %8.5fsec' % (task_idx, time.time() - tt))
+            print('SARIMAX | task: %3d | time: %8.2f sec' % (task_idx, time.time() - tt))
 
     def predict(self, test_tasks, exog_variables=None, foreward_periods=1):
         # if self.settings.use_exog is True:
@@ -75,7 +75,7 @@ class Sarimax:
             insample = res.predict()
             curr_predictions = insample.loc[test_time_series.index]
 
-            test_performance = self._performance_check(test_time_series.values.ravel(), curr_predictions.values.ravel())
+            test_performance = self._performance_check(test_time_series, curr_predictions)
             all_predictions.append(curr_predictions)
             all_forecasts.append(curr_forecast)
             all_test_perf.append(test_performance)
@@ -96,6 +96,8 @@ class Sarimax:
 
     @staticmethod
     def _performance_check(y_true, y_pred):
+        y_true = y_true.values.ravel()
+        y_pred = y_pred.values.ravel()
         # Make sure that if y_true is 0 then you return 0
         rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
         mape = (100 / len(y_true)) * np.sum(rel_error)

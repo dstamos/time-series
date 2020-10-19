@@ -83,3 +83,23 @@ def handle_data(list_of_tasks, lags, use_exog):
         # list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1, keepdims=True)
 
     return list_of_tasks
+
+
+def labels_to_raw(labels, raw_times_series):
+    """
+
+    :param labels: Pandas Series
+    :param raw_times_series:  Pandas Series
+    :return:
+    """
+    first_idx = raw_times_series.index.get_loc(labels.index[0]) - 1
+    first_value = raw_times_series.iloc[first_idx].values[0]
+
+    raw_predictions = pd.Series(index=labels.index)
+    raw = first_value
+    for idx in range(len(labels)):
+        label = labels.iloc[idx]
+        raw = raw + raw * label
+
+        raw_predictions.iloc[idx] = raw
+    return raw_predictions
