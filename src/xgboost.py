@@ -60,7 +60,7 @@ class Xgboost:
 
             curr_predictions = pd.Series(self.all_models[task_idx].predict(x_test), index=test_tasks[task_idx].test.labels.index)
 
-            raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series)
+            raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series, self.settings.horizon)
 
             predictions.append(curr_predictions)
             all_raw_predictions.append(raw_predictions)

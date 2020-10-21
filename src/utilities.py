@@ -85,21 +85,25 @@ def handle_data(list_of_tasks, lags, use_exog):
     return list_of_tasks
 
 
-def labels_to_raw(labels, raw_times_series):
+def labels_to_raw(labels, raw_times_series, horizon):
     """
 
+    :param horizon:
     :param labels: Pandas Series
     :param raw_times_series:  Pandas Series
     :return:
     """
-    first_idx = raw_times_series.index.get_loc(labels.index[0]) - 1
-    first_value = raw_times_series.iloc[first_idx].values[0]
+    # first_idx = raw_times_series.index.get_loc(labels.index[0])
+    # first_value = raw_times_series.iloc[first_idx].values[0]
 
-    raw_predictions = pd.Series(index=labels.index)
-    raw = first_value
-    for idx in range(len(labels)):
-        label = labels.iloc[idx]
-        raw = raw + raw * label
+    raw_predictions = pd.Series(index=raw_times_series.index)
+    for idx, actual_index in enumerate(labels.index):
+        ts_index = raw_times_series.index.get_loc(actual_index)
+        ts_value = raw_times_series.iloc[ts_index].values[0]
 
-        raw_predictions.iloc[idx] = raw
+        curr_pred = labels.loc[actual_index]
+        future_ts_value = ts_value + ts_value * curr_pred
+
+        raw_predictions.loc[actual_index + horizon] = future_ts_value
+    raw_predictions.dropna(inplace=True)
     return raw_predictions

@@ -139,7 +139,8 @@ class MealearningDataHandler:
 
         # Skip first row
         assert(len(list(csv.reader(open(training_filename)))) - 1 == len(list(csv.reader(open(test_filename)))) - 1)
-        n_rows = len(list(csv.reader(open(training_filename)))) - 1
+        # n_rows = len(list(csv.reader(open(training_filename)))) - 1
+        n_rows = 50
 
         def _load_m4(filename, idx):
             with open(filename) as csv_file:
@@ -177,8 +178,8 @@ class MealearningDataHandler:
 
         def dataset_splits(task_indexes):
             def get_labels(time_series, horizon=1):
-                # y = (time_series - time_series.shift(-horizon)) / time_series
-                y = time_series.pct_change().shift(-horizon)
+                y = (time_series.shift(-horizon) - time_series) / time_series
+                # y = time_series.pct_change().shift(-horizon)
                 # Will dropna later in the feature generation etc
                 # y = y.dropna()
                 return y

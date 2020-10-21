@@ -1,7 +1,6 @@
 import time
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
@@ -39,7 +38,8 @@ class Sarimax:
             time_series = pd.concat([tr_time_series, val_time_series])
             model = SARIMAX(time_series, exog=exog_variables,
                             order=(self.ar_order, self.difference_order, self.ma_order),
-                            seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
+                            seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period),
+                            enforce_stationarity=False)
             import warnings
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore")
@@ -73,6 +73,7 @@ class Sarimax:
                           seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
             res = mod.filter(model.params)
             insample = res.predict()
+            # TODO Predict "horizon" steps forward using the predictions
             curr_predictions = insample.loc[test_time_series.index]
 
             test_performance = self._performance_check(test_time_series, curr_predictions)

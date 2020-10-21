@@ -40,7 +40,7 @@ class ITL:
                 #####################################################
                 # Validation
                 curr_predictions = pd.Series(x_val @ curr_w, index=test_tasks[task_idx].validation.labels.index)
-                raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series)
+                raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series, self.settings.horizon)
                 raw_labels = test_tasks[task_idx].validation.raw_time_series.loc[raw_predictions.index]
                 val_performance = self._performance_check(raw_labels, raw_predictions)
 
@@ -72,7 +72,7 @@ class ITL:
             y_test = test_tasks[task_idx].test.labels.values.ravel()
 
             curr_predictions = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=test_tasks[task_idx].test.labels.index)
-            raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series)
+            raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series, self.settings.horizon)
             raw_labels = test_tasks[task_idx].test.raw_time_series.loc[raw_predictions.index]
             test_perf = self._performance_check(raw_labels, raw_predictions)
             all_test_perf.append(test_perf)

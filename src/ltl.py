@@ -24,15 +24,13 @@ class BiasLTL:
         dims = training_tasks[0].training.features.shape[1]
 
         best_val_performance = np.Inf
-
+        mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
         for regularization_parameter in self.settings.regularization_parameter_range:
             validation_performances = []
             all_average_vectors = []
 
             # For the sake of faster training
             # mean_vector = best_mean_vector
-            mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
-
             for task_idx in range(len(training_tasks)):
                 #####################################################
                 # Optimisation
@@ -55,7 +53,7 @@ class BiasLTL:
                     w = self._solve_wrt_w(mean_vector, x_train, y_train, temp_regul_param)
 
                     curr_predictions = pd.Series(x_test @ w, index=validation_tasks[validation_task_idx].test.labels.index)
-                    raw_predictions = labels_to_raw(curr_predictions, validation_tasks[validation_task_idx].test.raw_time_series)
+                    raw_predictions = labels_to_raw(curr_predictions, validation_tasks[validation_task_idx].test.raw_time_series, self.settings.horizon)
                     raw_labels = validation_tasks[validation_task_idx].test.raw_time_series.loc[raw_predictions.index]
                     temp_val_perf = self._performance_check(raw_labels, raw_predictions)
                     if temp_val_perf < temp_best_val_perf:
@@ -71,10 +69,11 @@ class BiasLTL:
 
             if validation_criterion:
                 best_val_performance = validation_performance
+                best_param = regularization_parameter
 
                 best_average_vectors = all_average_vectors
                 best_mean_vector = mean_vector
-        print(f'LTL | lambda: {np.nan:6e} | val performance: {best_val_performance:20.16f}')
+        print(f'LTL | lambda: {best_param:6e} | val performance: {best_val_performance:20.16f}')
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
@@ -98,7 +97,7 @@ class BiasLTL:
                     w = self._solve_wrt_w(meta_param, x_train, y_train, regularization_parameter)
 
                     curr_predictions = pd.Series(x_val @ w, index=test_tasks[task_idx].validation.labels.index)
-                    raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series)
+                    raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series, self.settings.horizon)
                     raw_labels = test_tasks[task_idx].validation.raw_time_series.loc[raw_predictions.index]
                     validation_performance = self._performance_check(raw_labels, raw_predictions)
 
@@ -114,10 +113,11 @@ class BiasLTL:
                 x_test = test_tasks[task_idx].test.features.values
                 y_test = test_tasks[task_idx].test.labels.values.ravel()
                 curr_predictions = pd.Series(x_test @ best_w, index=test_tasks[task_idx].test.labels.index)
-                test_performance = mean_squared_error(y_test, curr_predictions.values.ravel())
-
-                raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series)
+                raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series, self.settings.horizon)
+                raw_labels = test_tasks[task_idx].test.raw_time_series.loc[raw_predictions.index]
                 all_raw_predictions.append(raw_predictions)
+
+                test_performance = self._performance_check(raw_labels, raw_predictions)
 
                 all_test_perf.append(test_performance)
                 predictions.append(curr_predictions)
@@ -137,8 +137,9 @@ class BiasLTL:
         import matplotlib.pyplot as plt
         plt.figure()
         plt.plot(test_per_per_training_task)
+        plt.ticklabel_format(useOffset=False)
         plt.pause(0.01)
-        plt.show()
+        # plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
