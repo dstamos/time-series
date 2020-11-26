@@ -128,6 +128,8 @@ class MealearningDataHandler:
             self.m4_gen()
         elif self.settings.dataset == 'sine':
             self.synthetic_sine()
+        elif self.settings.dataset == 'synthetic_ar':
+            self.synthetic_ar()
         else:
             raise ValueError('Invalid dataset')
 
@@ -139,8 +141,8 @@ class MealearningDataHandler:
 
         # Skip first row
         assert(len(list(csv.reader(open(training_filename)))) - 1 == len(list(csv.reader(open(test_filename)))) - 1)
-        # n_rows = len(list(csv.reader(open(training_filename)))) - 1
-        n_rows = 50
+        n_rows = len(list(csv.reader(open(training_filename)))) - 1
+        # n_rows = 00
 
         def _load_m4(filename, idx):
             with open(filename) as csv_file:
@@ -152,6 +154,7 @@ class MealearningDataHandler:
             row = rows[idx][1:]
             # Remove empty strings from the end of the list
             row = list(filter(None, row))
+            row = row[:min(len(row), 24 * 14)]
             return pd.DataFrame(np.array(row).astype(float), columns=['m4_' + str(idx)])
 
         all_full_time_series = []
@@ -320,3 +323,235 @@ class MealearningDataHandler:
         self.training_tasks_indexes = training_tasks_indexes
         self.validation_tasks_indexes = validation_tasks_indexes
         self.test_tasks_indexes = test_tasks_indexes
+
+    def synthetic_ar(self):
+        if self.settings.use_exog is True:
+            raise ValueError('No exogenous variables available for the sine dataset')
+
+        # signal_std = 100 * np.random.randn()
+        # noise_std = 0.05 * signal_std
+
+        # my_dpi = 100
+        # fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
+        # ax = fig.add_subplot(111)
+
+        # n_time_series = 100
+        # n_points = 1000
+
+        # lags = 2
+        # if lags == 1:
+        #     weight_mean = 0.5 * np.ones(lags)
+        #     weight_std = 0.1 * weight_mean
+        #     weight_vector = weight_mean + weight_std * np.random.randn(lags)
+        #     w = np.clip(weight_vector, -0.99, 0.99)
+        # elif lags == 2:
+        #     w_1 = 0.5
+        #     w_1_std = 0.1 * w_1
+        #     w_1 = w_1 + w_1_std * np.random.randn()
+        #     w_1 = np.clip(w_1, -0.99, 0.99)
+        #
+        #     w_2_std = w_1_std  # just cause
+        #     w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
+        #     w_2_lower = -1 + np.abs(w_1)
+        #     w_2 = np.random.uniform(w_2_lower, w_2_upper)
+        #     w_2 = w_2 + w_2_std * np.random.randn()
+        #     w_2 = np.clip(w_2, w_2_lower, w_2_upper)
+        #
+        #     w = np.array([w_1, w_2])
+        # else:
+        #     raise ValueError('Generation based on AR(p) for p > 2 not implemented')
+
+        # previous_values = list(signal_std * np.random.randn(lags))
+        #
+        # from copy import deepcopy
+        # ts = deepcopy(previous_values)
+        # for idx in range(n_points - lags):
+        #
+        #     ar_value = [previous_values[i] * w[i] for i in range(lags)]
+        #     noise = noise_std * np.random.randn(lags)[0]
+        #     ar_value = np.sum(ar_value) + noise
+        #
+        #     ts.append(ar_value)
+        #     previous_values = previous_values[1:] + [ar_value]
+
+        # x = np.linspace(0, 20 * np.pi, n_points)
+        # ts = pd.DataFrame(np.sin(x), columns=['sine'])
+        # ts = ts[:200]
+
+        # lags = 2
+        # if lags == 1:
+        #     weight_mean = 0.5 * np.ones(lags)
+        #     weight_std = 0.1 * weight_mean
+        #     weight_vector = weight_mean + weight_std * np.random.randn(lags)
+        #     w = np.clip(weight_vector, -0.99, 0.99)
+        # elif lags == 2:
+        #     w_1 = 0.5
+        #     w_1_std = 0.1 * w_1
+        #     w_1 = w_1 + w_1_std * np.random.randn()
+        #     w_1 = np.clip(w_1, -0.99, 0.99)
+        #
+        #     w_2_std = w_1_std  # just cause
+        #     w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
+        #     w_2_lower = -1 + np.abs(w_1)
+        #     w_2 = np.random.uniform(w_2_lower, w_2_upper)
+        #     w_2 = w_2 + w_2_std * np.random.randn()
+        #     w_2 = np.clip(w_2, w_2_lower, w_2_upper)
+        #
+        #     w = np.array([w_1, w_2])
+        # else:
+        #     raise ValueError('Generation based on AR(p) for p > 2 not implemented')
+
+        n_time_series = 3
+        n_points = 1000
+        lags = 2
+        w_1_centroid = 0.5
+        w_2_centroid = -0.0
+        time_series_level = 200
+
+        all_full_time_series = []
+        for time_series_idx in range(n_time_series):
+            # signal_std = np.sqrt(time_series_level) * np.random.randn()
+            signal_std = 0.1 * time_series_level
+            noise_std = 0.01 * signal_std
+
+            if lags == 1:
+                weight_mean = np.array([w_1_centroid])
+                weight_std = 0.05 * weight_mean
+                weight_vector = weight_mean + weight_std * np.random.randn(lags)
+                w = np.clip(weight_vector, -0.99, 0.99)
+            elif lags == 2:
+                w_1 = np.array(w_1_centroid)
+                w_std = 0.5 * w_1
+                w_1 = w_1 + w_std * np.random.randn()
+                w_1 = np.clip(w_1, -0.99, 0.99)
+
+                w_2_std = w_std  # just cause
+                w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
+                w_2_lower = -1 + np.abs(w_1)
+                # w_2 = np.random.uniform(w_2_lower, w_2_upper)
+                w_2 = np.array(w_2_centroid)
+                w_2 = w_2 + w_2_std * np.random.randn()
+                w_2 = np.clip(w_2, w_2_lower, w_2_upper)
+
+                # w_2 = w_2_centroid
+
+                w = np.array([w_1, w_2])
+            else:
+                raise ValueError('Generation based on AR(p) for p > 2 not implemented')
+            print(w.ravel())
+
+            previous_values = list(time_series_level + signal_std * np.random.randn(lags))
+            print(previous_values)
+            from copy import deepcopy
+            curr_ts = deepcopy(previous_values)
+            # n_points * 3 to allow the series to "warmup" and stabilize
+            for idx in range(n_points * 3 - lags):
+                ar_value = [previous_values[i] * w[i] for i in range(lags)]
+                noise = noise_std * time_series_level * np.random.randn()
+                ar_value = time_series_level + np.sum(ar_value) + noise
+
+                curr_ts.append(ar_value)
+                previous_values = previous_values[1:] + [ar_value]
+
+            # all_full_time_series.append(curr_ts[-n_points:])
+            all_full_time_series.append(curr_ts)
+
+        # all_full_time_series = []
+        # for time_series_idx in range(n_time_series):
+        #     new_level = np.random.randint(1, 100000)
+        #     amplitude = np.sqrt(new_level)
+        #     curr_ts = new_level + amplitude * ts
+        #     # Adding noise
+        #     curr_ts = curr_ts + (amplitude / 10) * np.random.randn(len(curr_ts)).reshape(-1, 1)
+        #     all_full_time_series.append(curr_ts)
+
+        import matplotlib.pyplot as plt
+        my_dpi = 100
+        fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
+        ax = fig.add_subplot(111)
+        for time_series_idx in range(n_time_series):
+            ax.plot(all_full_time_series[time_series_idx])
+        plt.show()
+
+        exit()
+
+        # Split the tasks _indexes_ into training/validation/test
+        training_tasks_pct = self.settings.training_tasks_pct
+        validation_tasks_pct = self.settings.validation_tasks_pct
+        test_tasks_pct = self.settings.test_tasks_pct
+        training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
+        validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
+
+        training_points_pct = self.settings.training_points_pct
+        validation_points_pct = self.settings.validation_points_pct
+        test_points_pct = self.settings.test_points_pct
+
+        def dataset_splits(task_indexes):
+            def get_labels(time_series, horizon=1):
+                # y = (time_series - time_series.shift(-horizon)) / time_series
+                # y = time_series.shift(-horizon).pct_change()
+
+                # y = time_series.shift(-horizon)
+                # y = time_series.diff()
+                y = time_series.pct_change().shift(-1)
+
+                # Will dropna later in the feature generation etc
+                # y = y.dropna()
+                return y
+
+            bucket = []
+            for task_index in task_indexes:
+                # Split the dataset for the current tasks into training/validation/test
+                training_time_series, temp_time_series = train_test_split(all_full_time_series[task_index], test_size=1 - training_points_pct, shuffle=False)
+                validation_time_series, test_time_series = train_test_split(temp_time_series, test_size=test_points_pct / (test_points_pct + validation_points_pct), shuffle=False)
+
+                # Features will be filled later within the method, if it requires lagging etc, which is a parameter
+                training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                training.features = None
+                training.labels = get_labels(training_time_series, horizon=1)
+                training.raw_time_series = training_time_series
+                training.n_points = len(training.labels)
+
+                validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                validation.features = None
+                validation.labels = get_labels(validation_time_series, horizon=1)
+                validation.raw_time_series = validation_time_series
+                validation.n_points = len(validation.labels)
+
+                test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                test.features = None
+                test.labels = get_labels(test_time_series, horizon=1)
+                test.raw_time_series = test_time_series
+                test.n_points = len(test.labels)
+
+                SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
+                data = SetType(training, validation, test, len(task_indexes))
+
+                bucket.append(data)
+            return bucket
+
+        self.training_tasks = dataset_splits(training_tasks_indexes)
+        self.validation_tasks = dataset_splits(validation_tasks_indexes)
+        self.test_tasks = dataset_splits(test_tasks_indexes)
+
+        self.training_tasks_indexes = training_tasks_indexes
+        self.validation_tasks_indexes = validation_tasks_indexes
+        self.test_tasks_indexes = test_tasks_indexes
+
+
+#     def sample_next(self, time, samples, errors):
+#         """Sample a single time point
+#         Parameters
+#         ----------
+#         time : number
+#             Time at which a sample was required
+#         Returns
+#         -------
+#         ar_value : float
+#             sampled signal for time t
+#         """
+#         ar_value = [self.previous_value[i] * self.ar_param[i] for i in range(len(self.ar_param))]
+#         noise = np.random.normal(loc=0.0, scale=self.sigma, size=1)
+#         ar_value = np.sum(ar_value) + noise
+#         self.previous_value = self.previous_value[1:]+[ar_value]
+#         return ar_value
