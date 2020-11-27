@@ -401,18 +401,21 @@ class MealearningDataHandler:
         # else:
         #     raise ValueError('Generation based on AR(p) for p > 2 not implemented')
 
-        n_time_series = 3
-        n_points = 1000
+        n_time_series = 8
+        n_points = 5000
         lags = 2
         w_1_centroid = 0.5
-        w_2_centroid = -0.0
-        time_series_level = 200
+        w_2_centroid = -0.4
+        w_std_wrt_w = 0.1
 
         all_full_time_series = []
+        signal_magnitude = 1
+        signal_std = 0.1 * signal_magnitude
+        noise_std = 0.01 * signal_magnitude
         for time_series_idx in range(n_time_series):
-            # signal_std = np.sqrt(time_series_level) * np.random.randn()
-            signal_std = 0.1 * time_series_level
-            noise_std = 0.01 * signal_std
+            # signal_magnitude = np.random.uniform(1, 100)
+            # signal_std = 0.1 * signal_magnitude
+            # noise_std = 0.01 * signal_magnitude
 
             if lags == 1:
                 weight_mean = np.array([w_1_centroid])
@@ -421,56 +424,59 @@ class MealearningDataHandler:
                 w = np.clip(weight_vector, -0.99, 0.99)
             elif lags == 2:
                 w_1 = np.array(w_1_centroid)
-                w_std = 0.5 * w_1
-                w_1 = w_1 + w_std * np.random.randn()
+                w_1_std = w_std_wrt_w * w_1
+                w_1 = w_1 + w_1_std * np.random.randn()
                 w_1 = np.clip(w_1, -0.99, 0.99)
 
-                w_2_std = w_std  # just cause
                 w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
                 w_2_lower = -1 + np.abs(w_1)
                 # w_2 = np.random.uniform(w_2_lower, w_2_upper)
                 w_2 = np.array(w_2_centroid)
+                w_2_std = w_std_wrt_w * w_2
                 w_2 = w_2 + w_2_std * np.random.randn()
                 w_2 = np.clip(w_2, w_2_lower, w_2_upper)
-
-                # w_2 = w_2_centroid
 
                 w = np.array([w_1, w_2])
             else:
                 raise ValueError('Generation based on AR(p) for p > 2 not implemented')
             print(w.ravel())
 
-            previous_values = list(time_series_level + signal_std * np.random.randn(lags))
-            print(previous_values)
+            previous_values = list(signal_std * np.random.randn(lags))
+            # print(previous_values)
             from copy import deepcopy
             curr_ts = deepcopy(previous_values)
             # n_points * 3 to allow the series to "warmup" and stabilize
-            for idx in range(n_points * 3 - lags):
+            for idx in range(3 * n_points - lags):
                 ar_value = [previous_values[i] * w[i] for i in range(lags)]
-                noise = noise_std * time_series_level * np.random.randn()
-                ar_value = time_series_level + np.sum(ar_value) + noise
+                noise = noise_std * np.random.randn()
+                ar_value = np.sum(ar_value) + noise
 
                 curr_ts.append(ar_value)
                 previous_values = previous_values[1:] + [ar_value]
 
-            # all_full_time_series.append(curr_ts[-n_points:])
-            all_full_time_series.append(curr_ts)
-
-        # all_full_time_series = []
-        # for time_series_idx in range(n_time_series):
-        #     new_level = np.random.randint(1, 100000)
-        #     amplitude = np.sqrt(new_level)
-        #     curr_ts = new_level + amplitude * ts
-        #     # Adding noise
-        #     curr_ts = curr_ts + (amplitude / 10) * np.random.randn(len(curr_ts)).reshape(-1, 1)
-        #     all_full_time_series.append(curr_ts)
+            all_full_time_series.append(curr_ts[-3000:])
+            # all_full_time_series.append(curr_ts)
 
         import matplotlib.pyplot as plt
+        # my_dpi = 100
+        # fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
+        # ax = fig.add_subplot(111)
+
         my_dpi = 100
-        fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
-        ax = fig.add_subplot(111)
+        fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=len(all_full_time_series), ncols=1)
         for time_series_idx in range(n_time_series):
-            ax.plot(all_full_time_series[time_series_idx])
+            curr_ax = ax[time_series_idx]
+            curr_ax.plot(all_full_time_series[time_series_idx])
+            curr_ax.axhline(y=0, color='k')
+
+            curr_ax.spines["top"].set_visible(False)
+            curr_ax.spines["right"].set_visible(False)
+            curr_ax.spines["bottom"].set_visible(False)
+
+            print(np.mean(all_full_time_series[time_series_idx]))
+        title = 'w_center = (' + str(w_1_centroid) + ', ' + str(w_2_centroid) + ')' + '       w_std = ' + '(' + "{:6.4f}".format(w_1_std) + ', ' + "{:6.4f}".format(w_2_std) + ')'
+        plt.suptitle(title)
+        plt.savefig(title + ".jpg")
         plt.show()
 
         exit()
