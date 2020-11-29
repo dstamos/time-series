@@ -69,9 +69,10 @@ def handle_data(list_of_tasks, lags, use_exog):
             x_test = list_of_tasks[task_idx].test.features
             features_ts = lag_features(x_test, lags)
         else:
-            features_tr = lag_features(raw_time_series_tr, lags, keep_original=False)
-            features_val = lag_features(raw_time_series_val, lags, keep_original=False)
-            features_ts = lag_features(raw_time_series_ts, lags, keep_original=False)
+            # FIXME This used to have keep_original=False
+            features_tr = lag_features(raw_time_series_tr, lags)
+            features_val = lag_features(raw_time_series_val, lags)
+            features_ts = lag_features(raw_time_series_ts, lags)
 
         list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
         list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
@@ -103,6 +104,8 @@ def labels_to_raw(labels, raw_times_series, horizon):
 
         curr_pred = labels.loc[actual_index]
         future_ts_value = ts_value + ts_value * curr_pred
+
+        # future_ts_value = labels.loc[actual_index]
 
         raw_predictions.loc[actual_index + horizon] = future_ts_value
     raw_predictions.dropna(inplace=True)

@@ -57,7 +57,7 @@ class DataHandler:
 
         training_df = df.iloc[:int(df.shape[0] * self.settings.training_percentage)]
         test_df = df.drop(training_df.index)
-        print(training_df.shape)
+        # print(training_df.shape)
 
         # create labels, create features for training and test
         def get_features_labels(mixed_df):
@@ -342,11 +342,12 @@ class MealearningDataHandler:
             coeff_1 = np.clip(coeff_1, w_1_lower, w_1_upper)
             return coeff_1, coeff_2
 
-        n_time_series = 8
-        n_points = 5000
+        n_time_series = 100
+        n_points = 60
         lags = 2
-        w_1_centroid = 0.8
-        w_2_centroid = 0.3
+
+        w_2_centroid = np.random.uniform(-0.99, 0.99)  # |φ_2| < 1
+        w_1_centroid = np.random.uniform(w_2_centroid - 1, 1 - w_2_centroid)  # φ_1 + φ_2 < 1 and φ_2 - φ_1 < 1
         # Make sure the centroids themselves satisfy the ar conditions
         w_1_centroid, w_2_centroid = ar_constraints(w_1_centroid, w_2_centroid)
         w_std_wrt_w = 0.1
@@ -379,22 +380,19 @@ class MealearningDataHandler:
             from copy import deepcopy
             curr_ts = deepcopy(previous_values)
             # n_points * 3 to allow the series to "warmup" and stabilize
-            for idx in range(3 * n_points - lags):
+            for idx in range(5 * n_points - lags):
                 ar_value = previous_values @ w + noise_std * np.random.randn()
 
                 curr_ts.append(ar_value)
                 previous_values = [ar_value] + previous_values[:-1]
-
-            all_full_time_series.append(curr_ts[-3000:])
+            curr_ts = pd.DataFrame(curr_ts[-n_points:], columns = ['ts_' + str(time_series_idx)])
+            all_full_time_series.append(curr_ts[-n_points:])
 
         import matplotlib.pyplot as plt
-        # my_dpi = 100
-        # fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
-        # ax = fig.add_subplot(111)
-
         my_dpi = 100
-        fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=len(all_full_time_series), ncols=1)
-        for time_series_idx in range(n_time_series):
+        n_plots = min(n_time_series, 8)
+        fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+        for time_series_idx in range(n_plots):
             curr_ax = ax[time_series_idx]
             curr_ax.plot(all_full_time_series[time_series_idx])
             curr_ax.axhline(y=0, color='k')
@@ -403,16 +401,14 @@ class MealearningDataHandler:
             curr_ax.spines["right"].set_visible(False)
             curr_ax.spines["bottom"].set_visible(False)
 
-            print(np.mean(all_full_time_series[time_series_idx]))
-
         w_mean = np.mean(all_w, axis=0)
         w_std = np.std(all_w, axis=0)
         title = 'w_center = (' + "{:6.4f}".format(w_mean[0]) + ', ' + "{:6.4f}".format(w_mean[1]) + ')' + '     w_std = ' + '(' + "{:6.4f}".format(w_std[0]) + ', ' + "{:6.4f}".format(w_std[1]) + ')'
         plt.suptitle(title)
         plt.savefig(title + ".jpg")
-        plt.show()
-
-        exit()
+        plt.pause(0.1)
+        # plt.show()
+        # exit()
 
         # Split the tasks _indexes_ into training/validation/test
         training_tasks_pct = self.settings.training_tasks_pct
@@ -432,7 +428,8 @@ class MealearningDataHandler:
 
                 # y = time_series.shift(-horizon)
                 # y = time_series.diff()
-                y = time_series.pct_change().shift(-1)
+                y = time_series.pct_change().shift(-horizon)
+                # y = time_series.shift(-horizon)
 
                 # Will dropna later in the feature generation etc
                 # y = y.dropna()
@@ -476,21 +473,3 @@ class MealearningDataHandler:
         self.training_tasks_indexes = training_tasks_indexes
         self.validation_tasks_indexes = validation_tasks_indexes
         self.test_tasks_indexes = test_tasks_indexes
-
-
-#     def sample_next(self, time, samples, errors):
-#         """Sample a single time point
-#         Parameters
-#         ----------
-#         time : number
-#             Time at which a sample was required
-#         Returns
-#         -------
-#         ar_value : float
-#             sampled signal for time t
-#         """
-#         ar_value = [self.previous_value[i] * self.ar_param[i] for i in range(len(self.ar_param))]
-#         noise = np.random.normal(loc=0.0, scale=self.sigma, size=1)
-#         ar_value = np.sum(ar_value) + noise
-#         self.previous_value = self.previous_value[1:]+[ar_value]
-#         return ar_value
