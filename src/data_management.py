@@ -328,90 +328,35 @@ class MealearningDataHandler:
         if self.settings.use_exog is True:
             raise ValueError('No exogenous variables available for the sine dataset')
 
-        # signal_std = 100 * np.random.randn()
-        # noise_std = 0.05 * signal_std
+        def ar_constraints(w_1_coeff, w_2_coeff, std=0.0):
+            coeff_2 = np.array(w_2_coeff)
+            w_2_std = std * coeff_2
+            coeff_2 = coeff_2 + w_2_std * np.random.randn()
+            coeff_2 = np.clip(coeff_2, -0.99, 0.99)
 
-        # my_dpi = 100
-        # fig = plt.figure(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi)
-        # ax = fig.add_subplot(111)
-
-        # n_time_series = 100
-        # n_points = 1000
-
-        # lags = 2
-        # if lags == 1:
-        #     weight_mean = 0.5 * np.ones(lags)
-        #     weight_std = 0.1 * weight_mean
-        #     weight_vector = weight_mean + weight_std * np.random.randn(lags)
-        #     w = np.clip(weight_vector, -0.99, 0.99)
-        # elif lags == 2:
-        #     w_1 = 0.5
-        #     w_1_std = 0.1 * w_1
-        #     w_1 = w_1 + w_1_std * np.random.randn()
-        #     w_1 = np.clip(w_1, -0.99, 0.99)
-        #
-        #     w_2_std = w_1_std  # just cause
-        #     w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
-        #     w_2_lower = -1 + np.abs(w_1)
-        #     w_2 = np.random.uniform(w_2_lower, w_2_upper)
-        #     w_2 = w_2 + w_2_std * np.random.randn()
-        #     w_2 = np.clip(w_2, w_2_lower, w_2_upper)
-        #
-        #     w = np.array([w_1, w_2])
-        # else:
-        #     raise ValueError('Generation based on AR(p) for p > 2 not implemented')
-
-        # previous_values = list(signal_std * np.random.randn(lags))
-        #
-        # from copy import deepcopy
-        # ts = deepcopy(previous_values)
-        # for idx in range(n_points - lags):
-        #
-        #     ar_value = [previous_values[i] * w[i] for i in range(lags)]
-        #     noise = noise_std * np.random.randn(lags)[0]
-        #     ar_value = np.sum(ar_value) + noise
-        #
-        #     ts.append(ar_value)
-        #     previous_values = previous_values[1:] + [ar_value]
-
-        # x = np.linspace(0, 20 * np.pi, n_points)
-        # ts = pd.DataFrame(np.sin(x), columns=['sine'])
-        # ts = ts[:200]
-
-        # lags = 2
-        # if lags == 1:
-        #     weight_mean = 0.5 * np.ones(lags)
-        #     weight_std = 0.1 * weight_mean
-        #     weight_vector = weight_mean + weight_std * np.random.randn(lags)
-        #     w = np.clip(weight_vector, -0.99, 0.99)
-        # elif lags == 2:
-        #     w_1 = 0.5
-        #     w_1_std = 0.1 * w_1
-        #     w_1 = w_1 + w_1_std * np.random.randn()
-        #     w_1 = np.clip(w_1, -0.99, 0.99)
-        #
-        #     w_2_std = w_1_std  # just cause
-        #     w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
-        #     w_2_lower = -1 + np.abs(w_1)
-        #     w_2 = np.random.uniform(w_2_lower, w_2_upper)
-        #     w_2 = w_2 + w_2_std * np.random.randn()
-        #     w_2 = np.clip(w_2, w_2_lower, w_2_upper)
-        #
-        #     w = np.array([w_1, w_2])
-        # else:
-        #     raise ValueError('Generation based on AR(p) for p > 2 not implemented')
+            w_1_upper = 1 - coeff_2
+            w_1_lower = -1 + coeff_2
+            coeff_1 = np.array(w_1_coeff)
+            w_1_std = std * coeff_1
+            coeff_1 = coeff_1 + w_1_std * np.random.randn()
+            coeff_1 = np.clip(coeff_1, w_1_lower, w_1_upper)
+            return coeff_1, coeff_2
 
         n_time_series = 8
         n_points = 5000
         lags = 2
-        w_1_centroid = 0.5
-        w_2_centroid = -0.4
+        w_1_centroid = 0.8
+        w_2_centroid = 0.3
+        # Make sure the centroids themselves satisfy the ar conditions
+        w_1_centroid, w_2_centroid = ar_constraints(w_1_centroid, w_2_centroid)
         w_std_wrt_w = 0.1
 
         all_full_time_series = []
         signal_magnitude = 1
         signal_std = 0.1 * signal_magnitude
         noise_std = 0.01 * signal_magnitude
+
+        all_w = []
         for time_series_idx in range(n_time_series):
             # signal_magnitude = np.random.uniform(1, 100)
             # signal_std = 0.1 * signal_magnitude
@@ -423,39 +368,24 @@ class MealearningDataHandler:
                 weight_vector = weight_mean + weight_std * np.random.randn(lags)
                 w = np.clip(weight_vector, -0.99, 0.99)
             elif lags == 2:
-                w_1 = np.array(w_1_centroid)
-                w_1_std = w_std_wrt_w * w_1
-                w_1 = w_1 + w_1_std * np.random.randn()
-                w_1 = np.clip(w_1, -0.99, 0.99)
-
-                w_2_upper = np.min([1, 1 - w_1, 1 + w_1])
-                w_2_lower = -1 + np.abs(w_1)
-                # w_2 = np.random.uniform(w_2_lower, w_2_upper)
-                w_2 = np.array(w_2_centroid)
-                w_2_std = w_std_wrt_w * w_2
-                w_2 = w_2 + w_2_std * np.random.randn()
-                w_2 = np.clip(w_2, w_2_lower, w_2_upper)
-
+                w_1, w_2 = ar_constraints(w_1_centroid, w_2_centroid, w_std_wrt_w)
                 w = np.array([w_1, w_2])
             else:
                 raise ValueError('Generation based on AR(p) for p > 2 not implemented')
             print(w.ravel())
-
+            all_w.append(w)
             previous_values = list(signal_std * np.random.randn(lags))
-            # print(previous_values)
+
             from copy import deepcopy
             curr_ts = deepcopy(previous_values)
             # n_points * 3 to allow the series to "warmup" and stabilize
             for idx in range(3 * n_points - lags):
-                ar_value = [previous_values[i] * w[i] for i in range(lags)]
-                noise = noise_std * np.random.randn()
-                ar_value = np.sum(ar_value) + noise
+                ar_value = previous_values @ w + noise_std * np.random.randn()
 
                 curr_ts.append(ar_value)
-                previous_values = previous_values[1:] + [ar_value]
+                previous_values = [ar_value] + previous_values[:-1]
 
             all_full_time_series.append(curr_ts[-3000:])
-            # all_full_time_series.append(curr_ts)
 
         import matplotlib.pyplot as plt
         # my_dpi = 100
@@ -474,7 +404,10 @@ class MealearningDataHandler:
             curr_ax.spines["bottom"].set_visible(False)
 
             print(np.mean(all_full_time_series[time_series_idx]))
-        title = 'w_center = (' + str(w_1_centroid) + ', ' + str(w_2_centroid) + ')' + '       w_std = ' + '(' + "{:6.4f}".format(w_1_std) + ', ' + "{:6.4f}".format(w_2_std) + ')'
+
+        w_mean = np.mean(all_w, axis=0)
+        w_std = np.std(all_w, axis=0)
+        title = 'w_center = (' + "{:6.4f}".format(w_mean[0]) + ', ' + "{:6.4f}".format(w_mean[1]) + ')' + '     w_std = ' + '(' + "{:6.4f}".format(w_std[0]) + ', ' + "{:6.4f}".format(w_std[1]) + ')'
         plt.suptitle(title)
         plt.savefig(title + ".jpg")
         plt.show()
