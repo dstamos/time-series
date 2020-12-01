@@ -52,9 +52,9 @@ def forward_shift_ts(df, horizon_list):
 def handle_data(list_of_tasks, lags, use_exog):
     for task_idx in range(len(list_of_tasks)):
         # The features are based just on the percentage difference of values of the time series
-        raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series.pct_change()
-        raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series.pct_change()
-        raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series.pct_change()
+        raw_time_series_tr = list_of_tasks[task_idx].training.raw_time_series
+        raw_time_series_val = list_of_tasks[task_idx].validation.raw_time_series
+        raw_time_series_ts = list_of_tasks[task_idx].test.raw_time_series
 
         y_train = list_of_tasks[task_idx].training.labels
         y_validation = list_of_tasks[task_idx].validation.labels
