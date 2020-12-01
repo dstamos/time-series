@@ -343,7 +343,7 @@ class MealearningDataHandler:
             return coeff_1, coeff_2
 
         n_time_series = 100
-        n_points = 60
+        n_points = 300
         lags = 2
 
         w_2_centroid = np.random.uniform(-0.99, 0.99)  # |φ_2| < 1
@@ -373,7 +373,7 @@ class MealearningDataHandler:
                 w = np.array([w_1, w_2])
             else:
                 raise ValueError('Generation based on AR(p) for p > 2 not implemented')
-            print(w.ravel())
+            # print(w.ravel())
             all_w.append(w)
             previous_values = list(signal_std * np.random.randn(lags))
 
@@ -385,7 +385,7 @@ class MealearningDataHandler:
 
                 curr_ts.append(ar_value)
                 previous_values = [ar_value] + previous_values[:-1]
-            curr_ts = pd.DataFrame(curr_ts[-n_points:], columns = ['ts_' + str(time_series_idx)])
+            curr_ts = pd.DataFrame(curr_ts[-n_points:], columns=['ts_' + str(time_series_idx)])
             all_full_time_series.append(curr_ts[-n_points:])
 
         import matplotlib.pyplot as plt
@@ -428,8 +428,8 @@ class MealearningDataHandler:
 
                 # y = time_series.shift(-horizon)
                 # y = time_series.diff()
-                y = time_series.pct_change().shift(-horizon)
-                # y = time_series.shift(-horizon)
+                # y = time_series.pct_change().shift(-horizon)
+                y = time_series.shift(-horizon)
 
                 # Will dropna later in the feature generation etc
                 # y = y.dropna()

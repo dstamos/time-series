@@ -1,10 +1,12 @@
 from src.data_management import Settings, MealearningDataHandler
 from src.training import training
+from time import time
 import numpy as np
 import pandas as pd
 
 
 def main():
+    tt = time()
     # data_settings = {'dataset': 'm4',
     #                  'use_exog': False,
     #                  'training_tasks_pct': 0.80,
@@ -20,9 +22,9 @@ def main():
                      'training_tasks_pct': 0.80,
                      'validation_tasks_pct': 0.1,
                      'test_tasks_pct': 0.1,
-                     'training_points_pct': 0.1,
-                     'validation_points_pct': 0.3,
-                     'test_points_pct': 0.6,
+                     'training_points_pct': 0.5,
+                     'validation_points_pct': 0.2,
+                     'test_points_pct': 0.3,
                      'forecast_length': 1}
 
     data_settings = Settings(data_settings)
@@ -66,6 +68,7 @@ def main():
     # model_xgboost = training(data, training_settings)
     #############################################################################
 
+    print('done', time() - tt)
     # import matplotlib
     # font = {'weight': 'bold',
     #         'size': 24}
@@ -97,14 +100,14 @@ def main():
         curr_ax.plot(pred, color='tab:blue', label='Bias Meta-learning')
 
         # curr_ax.set_ylim([np.min(true.values), np.max(true.values)])
-        curr_ax.axhline(y=0, color='k')
+        curr_ax.axhline(y=0, color='tab:gray', linestyle=':')
         curr_ax.spines["top"].set_visible(False)
         curr_ax.spines["right"].set_visible(False)
         curr_ax.spines["bottom"].set_visible(False)
 
     plt.legend()
     plt.suptitle('predictions')
-    plt.savefig('muri_presentation')
+    plt.savefig('plot_' + str(seed) + '.png')
     plt.show()
 
 

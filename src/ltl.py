@@ -147,7 +147,7 @@ class BiasLTL:
             plt.plot(test_per_per_training_task)
             plt.ticklabel_format(useOffset=False)
             plt.pause(0.01)
-        # plt.show()
+            # plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):

@@ -102,10 +102,10 @@ def labels_to_raw(labels, raw_times_series, horizon):
         ts_index = raw_times_series.index.get_loc(actual_index)
         ts_value = raw_times_series.iloc[ts_index].values[0]
 
-        curr_pred = labels.loc[actual_index]
-        future_ts_value = ts_value + ts_value * curr_pred
+        # curr_pred = labels.loc[actual_index]
+        # future_ts_value = ts_value + ts_value * curr_pred
 
-        # future_ts_value = labels.loc[actual_index]
+        future_ts_value = labels.loc[actual_index]
 
         raw_predictions.loc[actual_index + horizon] = future_ts_value
     raw_predictions.dropna(inplace=True)
