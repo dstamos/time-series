@@ -342,8 +342,10 @@ class MealearningDataHandler:
             coeff_1 = np.clip(coeff_1, w_1_lower, w_1_upper)
             return coeff_1, coeff_2
 
-        n_time_series = 100
-        n_points = 300
+        n_time_series = self.settings.n_time_series
+        n_tr_points = self.settings.n_tr_points
+        n_test_points = self.settings.n_test_points
+        n_total_points = self.settings.n_total_points
         lags = 2
 
         w_2_centroid = np.random.uniform(-0.99, 0.99)  # |φ_2| < 1
@@ -380,33 +382,33 @@ class MealearningDataHandler:
             from copy import deepcopy
             curr_ts = deepcopy(previous_values)
             # n_points * 3 to allow the series to "warmup" and stabilize
-            for idx in range(5 * n_points - lags):
+            for idx in range(5 * n_total_points - lags):
                 ar_value = previous_values @ w + noise_std * np.random.randn()
 
                 curr_ts.append(ar_value)
                 previous_values = [ar_value] + previous_values[:-1]
-            curr_ts = pd.DataFrame(curr_ts[-n_points:], columns=['ts_' + str(time_series_idx)])
-            all_full_time_series.append(curr_ts[-n_points:])
+            curr_ts = pd.DataFrame(curr_ts[-n_total_points:], columns=['ts_' + str(time_series_idx)])
+            all_full_time_series.append(curr_ts[-n_total_points:])
 
-        import matplotlib.pyplot as plt
-        my_dpi = 100
-        n_plots = min(n_time_series, 8)
-        fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
-        for time_series_idx in range(n_plots):
-            curr_ax = ax[time_series_idx]
-            curr_ax.plot(all_full_time_series[time_series_idx])
-            curr_ax.axhline(y=0, color='k')
-
-            curr_ax.spines["top"].set_visible(False)
-            curr_ax.spines["right"].set_visible(False)
-            curr_ax.spines["bottom"].set_visible(False)
-
-        w_mean = np.mean(all_w, axis=0)
-        w_std = np.std(all_w, axis=0)
-        title = 'w_center = (' + "{:6.4f}".format(w_mean[0]) + ', ' + "{:6.4f}".format(w_mean[1]) + ')' + '     w_std = ' + '(' + "{:6.4f}".format(w_std[0]) + ', ' + "{:6.4f}".format(w_std[1]) + ')'
-        plt.suptitle(title)
-        plt.savefig(title + ".jpg")
-        plt.pause(0.1)
+        # import matplotlib.pyplot as plt
+        # my_dpi = 100
+        # n_plots = min(n_time_series, 8)
+        # fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+        # for time_series_idx in range(n_plots):
+        #     curr_ax = ax[time_series_idx]
+        #     curr_ax.plot(all_full_time_series[time_series_idx])
+        #     curr_ax.axhline(y=0, color='k')
+        #
+        #     curr_ax.spines["top"].set_visible(False)
+        #     curr_ax.spines["right"].set_visible(False)
+        #     curr_ax.spines["bottom"].set_visible(False)
+        #
+        # w_mean = np.mean(all_w, axis=0)
+        # w_std = np.std(all_w, axis=0)
+        # title = 'w_center = (' + "{:6.4f}".format(w_mean[0]) + ', ' + "{:6.4f}".format(w_mean[1]) + ')' + '     w_std = ' + '(' + "{:6.4f}".format(w_std[0]) + ', ' + "{:6.4f}".format(w_std[1]) + ')'
+        # plt.suptitle(title)
+        # plt.savefig(title + ".jpg")
+        # plt.pause(0.1)
         # plt.show()
         # exit()
 
@@ -416,10 +418,6 @@ class MealearningDataHandler:
         test_tasks_pct = self.settings.test_tasks_pct
         training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
         validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
-
-        training_points_pct = self.settings.training_points_pct
-        validation_points_pct = self.settings.validation_points_pct
-        test_points_pct = self.settings.test_points_pct
 
         def dataset_splits(task_indexes):
             def get_labels(time_series, horizon=1):
@@ -438,8 +436,10 @@ class MealearningDataHandler:
             bucket = []
             for task_index in task_indexes:
                 # Split the dataset for the current tasks into training/validation/test
-                training_time_series, temp_time_series = train_test_split(all_full_time_series[task_index], test_size=1 - training_points_pct, shuffle=False)
-                validation_time_series, test_time_series = train_test_split(temp_time_series, test_size=test_points_pct / (test_points_pct + validation_points_pct), shuffle=False)
+                fixed_val_pct = 0.2
+                temp = all_full_time_series[task_index].iloc[-(n_tr_points + n_test_points):-n_test_points]
+                training_time_series, validation_time_series = train_test_split(temp, test_size=fixed_val_pct, shuffle=False)
+                test_time_series = all_full_time_series[task_index].iloc[-n_test_points:]
 
                 # Features will be filled later within the method, if it requires lagging etc, which is a parameter
                 training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])

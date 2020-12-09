@@ -2,7 +2,7 @@ from numpy import identity as eye
 import pandas as pd
 from src.utilities import labels_to_raw
 import numpy as np
-from src.utilities import handle_data
+from src.utilities import handle_data, performance_check
 from numpy.linalg.linalg import pinv
 
 
@@ -42,7 +42,8 @@ class ITL:
                 curr_predictions = pd.Series(x_val @ curr_w, index=test_tasks[task_idx].validation.labels.index)
                 raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series, self.settings.horizon)
                 raw_labels = test_tasks[task_idx].validation.raw_time_series.loc[raw_predictions.index]
-                val_performance = self._performance_check(raw_labels, raw_predictions)
+                errors = performance_check(raw_labels, raw_predictions)
+                val_performance = errors['mse']
 
                 if val_performance < best_val_performance:
                     validation_criterion = True
@@ -74,7 +75,8 @@ class ITL:
             curr_predictions = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=test_tasks[task_idx].test.labels.index)
             raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series, self.settings.horizon)
             raw_labels = test_tasks[task_idx].test.raw_time_series.loc[raw_predictions.index]
-            test_perf = self._performance_check(raw_labels, raw_predictions)
+            errors = performance_check(raw_labels, raw_predictions)
+            test_perf = errors['mse']
             all_test_perf.append(test_perf)
             all_predictions.append(curr_predictions)
             all_raw_predictions.append(raw_predictions)
@@ -82,12 +84,3 @@ class ITL:
         self.all_predictions = all_predictions
         self.all_raw_predictions = all_raw_predictions
         print('ITL | test performance: %8.5f' % (np.nanmean(all_test_perf)))
-
-    @staticmethod
-    def _performance_check(y_true, y_pred):
-        y_true = y_true.values.ravel()
-        y_pred = y_pred.values.ravel()
-        # Make sure that if y_true is 0 then you return 0
-        rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
-        mape = (100 / len(y_true)) * np.sum(rel_error)
-        return mape

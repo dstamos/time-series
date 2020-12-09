@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from src.utilities import handle_data, labels_to_raw
+from src.utilities import handle_data, labels_to_raw, performance_check
 from time import time
 from numpy.linalg.linalg import norm, pinv, matrix_power
 
@@ -59,7 +59,8 @@ class BiasLTL:
                     curr_predictions = pd.Series(x_test @ w, index=validation_tasks[validation_task_idx].test.labels.index)
                     raw_predictions = labels_to_raw(curr_predictions, validation_tasks[validation_task_idx].test.raw_time_series, self.settings.horizon)
                     raw_labels = validation_tasks[validation_task_idx].test.raw_time_series.loc[raw_predictions.index]
-                    temp_val_perf = self._performance_check(raw_labels, raw_predictions)
+                    errors = performance_check(raw_labels, raw_predictions)
+                    temp_val_perf = errors['mse']
                     if temp_val_perf < temp_best_val_perf:
                         temp_best_val_perf = temp_val_perf
                 validation_performances.append(temp_best_val_perf)
@@ -105,7 +106,8 @@ class BiasLTL:
                     curr_predictions = pd.Series(x_val @ w, index=test_tasks[task_idx].validation.labels.index)
                     raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series, self.settings.horizon)
                     raw_labels = test_tasks[task_idx].validation.raw_time_series.loc[raw_predictions.index]
-                    validation_performance = self._performance_check(raw_labels, raw_predictions)
+                    errors = performance_check(raw_labels, raw_predictions)
+                    validation_performance = errors['mse']
 
                     if validation_performance < best_val_performance:
                         validation_criterion = True
@@ -123,13 +125,14 @@ class BiasLTL:
                 raw_labels = test_tasks[task_idx].test.raw_time_series.loc[raw_predictions.index]
                 all_raw_predictions.append(raw_predictions)
 
-                test_performance = self._performance_check(raw_labels, raw_predictions)
+                errors = performance_check(raw_labels, raw_predictions)
+                test_performance = errors['mse']
 
                 all_test_perf.append(test_performance)
                 predictions.append(curr_predictions)
             avg_perf = float(np.mean(all_test_perf))
             test_per_per_training_task.append(avg_perf)
-            print('%3d/%3d | %5.2fsec' % (meta_param_idx, len(self.all_metaparameters), time() - tt))
+            # print('%3d/%3d | %5.2fsec' % (meta_param_idx, len(self.all_metaparameters), time() - tt))
         self.all_predictions = predictions
         self.all_raw_predictions = all_raw_predictions
         self.test_per_per_training_task = test_per_per_training_task
@@ -141,13 +144,13 @@ class BiasLTL:
         # plt.plot(curr_prediction)
         # plt.pause(0.1)
 
-        if len(test_per_per_training_task) >= 2:
-            import matplotlib.pyplot as plt
-            plt.figure()
-            plt.plot(test_per_per_training_task)
-            plt.ticklabel_format(useOffset=False)
-            plt.pause(0.01)
-            # plt.show()
+        # if len(test_per_per_training_task) >= 2:
+        #     import matplotlib.pyplot as plt
+        #     plt.figure()
+        #     plt.plot(test_per_per_training_task)
+        #     plt.ticklabel_format(useOffset=False)
+        #     plt.pause(0.01)
+        #     # plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
@@ -177,12 +180,3 @@ class BiasLTL:
         w = pinv(c_n_lambda) @ (x.T @ y / n + param * h).ravel()
 
         return w
-
-    @staticmethod
-    def _performance_check(y_true, y_pred):
-        y_true = y_true.values.ravel()
-        y_pred = y_pred.values.ravel()
-        # Make sure that if y_true is 0 then you return 0
-        rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
-        mape = (100 / len(y_true)) * np.sum(rel_error)
-        return mape

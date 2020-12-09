@@ -110,3 +110,20 @@ def labels_to_raw(labels, raw_times_series, horizon):
         raw_predictions.loc[actual_index + horizon] = future_ts_value
     raw_predictions.dropna(inplace=True)
     return raw_predictions
+
+
+def performance_check(y_true, y_pred):
+    y_true = y_true.values.ravel()
+    y_pred = y_pred.values.ravel()
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore")
+        # Make sure that if y_true is 0 then you return 0
+        rel_error = np.abs(np.divide((y_true - y_pred), y_true, out=np.zeros_like(y_true), where=(y_true != 0)))
+        mape = (100 / len(y_true)) * np.sum(rel_error)
+
+        from sklearn.metrics import mean_squared_error
+        mse = mean_squared_error(y_true, y_pred)
+
+    errors = {'mse': mse, 'mape': mape}
+    return errors
