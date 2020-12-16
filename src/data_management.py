@@ -130,6 +130,8 @@ class MealearningDataHandler:
             self.synthetic_sine()
         elif self.settings.dataset == 'synthetic_ar':
             self.synthetic_ar()
+        elif self.settings.dataset == 'air_quality_madrid':
+            self.air_quality_madrid()
         else:
             raise ValueError('Invalid dataset')
 
@@ -457,6 +459,118 @@ class MealearningDataHandler:
                 test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 test.features = None
                 test.labels = get_labels(test_time_series, horizon=1)
+                test.raw_time_series = test_time_series
+                test.n_points = len(test.labels)
+
+                SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
+                data = SetType(training, validation, test, len(task_indexes))
+
+                bucket.append(data)
+            return bucket
+
+        self.training_tasks = dataset_splits(training_tasks_indexes)
+        self.validation_tasks = dataset_splits(validation_tasks_indexes)
+        self.test_tasks = dataset_splits(test_tasks_indexes)
+
+        self.training_tasks_indexes = training_tasks_indexes
+        self.validation_tasks_indexes = validation_tasks_indexes
+        self.test_tasks_indexes = test_tasks_indexes
+
+    def air_quality_madrid(self):
+        import os
+
+        partials = list()
+
+        with pd.HDFStore('./data/air_quality_madrid/madrid.h5') as data:
+            stations = [k[1:] for k in data.keys() if k != '/master']
+            for station in stations:
+                df = data[station]
+                df['station'] = station
+                partials.append(df)
+
+        measures = pd.concat(partials, sort=False).sort_index()
+        measures.head()
+
+        # measures = measures.astype(np.float)
+        # ts = np.sum(measures, axis=1)
+
+        station_ids = measures['station'].unique().tolist()
+        split_datasets = []
+        for station_id in station_ids:
+            split_datasets.append(measures.loc[measures.station == station_id].drop(['station'], axis=1).astype(np.float))
+
+        # for idx in range(len(station_ids)):
+        #     print(split_datasets[idx].head())
+        #     print(split_datasets[idx].tail())
+        #     for i in range(5):
+        #         print('')
+
+        all_full_time_series = []
+        for idx in range(len(station_ids)):
+
+            ts = np.sum(split_datasets[idx].fillna(method='ffill'), axis=1)
+            ts = ts.resample('H', fill_method='ffill')
+
+            # TODO
+            ts = ts.diff().dropna()
+            # TODO
+
+            all_full_time_series.append(ts.to_frame('madrid_station_' + str(idx)))
+
+        # import matplotlib.pyplot as plt
+        # for idx in range(len(all_time_series)):
+        #     fig, ax = plt.subplots(figsize=(1920 / 100, 1080 / 100), facecolor='white', dpi=100, nrows=1, ncols=1)
+        #     print(len(all_time_series[idx]))
+        #     ax.plot(all_time_series[idx])
+        #     plt.show()
+
+        n_tr_points = 500
+        n_test_points = 300
+
+        training_tasks_pct = self.settings.training_tasks_pct
+        validation_tasks_pct = self.settings.validation_tasks_pct
+        test_tasks_pct = self.settings.test_tasks_pct
+        training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
+        validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
+
+        def dataset_splits(task_indexes):
+            def get_labels(time_series, horizon=1):
+                # y = (time_series - time_series.shift(-horizon)) / time_series
+                # y = time_series.shift(-horizon).pct_change()
+
+                # y = time_series.shift(-horizon)
+                # y = time_series.diff()
+                # y = time_series.pct_change().shift(-horizon)
+                y = time_series.shift(-horizon)
+
+                # Will dropna later in the feature generation etc
+                # y = y.dropna()
+                return y
+
+            bucket = []
+            for task_index in task_indexes:
+                # Split the dataset for the current tasks into training/validation/test
+                fixed_val_pct = 0.2
+                temp = all_full_time_series[task_index].iloc[-(n_tr_points + n_test_points):-n_test_points]
+                training_time_series, validation_time_series = train_test_split(temp, test_size=fixed_val_pct, shuffle=False)
+                test_time_series = all_full_time_series[task_index].iloc[-n_test_points:]
+
+                # Features will be filled later within the method, if it requires lagging etc, which is a parameter
+                training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                training.features = None
+                training.labels = get_labels(training_time_series, horizon=12)
+                training.raw_time_series = training_time_series
+                training.n_points = len(training.labels)
+
+                validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                validation.features = None
+                validation.labels = get_labels(validation_time_series, horizon=12)
+                validation.raw_time_series = validation_time_series
+                validation.n_points = len(validation.labels)
+
+                test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                test.features = None
+                test.labels = get_labels(test_time_series, horizon=12)
                 test.raw_time_series = test_time_series
                 test.n_points = len(test.labels)
 
