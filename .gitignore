@@ -1,7 +1,9 @@
 /.idea/
 /data
+/spam
 /results
 *.pckl
 scratch.py
 *.pyc
 *.png
+*.sh

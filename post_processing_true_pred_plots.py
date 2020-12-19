@@ -9,7 +9,7 @@ import pickle
 
 
 seed = 999
-tr_points = 24 * 4
+tr_points = 24 * 30
 tt = time()
 
 # Load the models
@@ -24,17 +24,16 @@ data = MealearningDataHandler(data_settings)
 my_dpi = 100
 n_plots = min(len(data.test_tasks), 8)
 fig, ax = plt.subplots(figsize=(2 * 1920 / my_dpi, 2 * 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+lookback = 24 * 90
 for task_idx in range(n_plots):
     curr_ax = ax[task_idx]
-    pred_itl = model_itl.all_raw_predictions[task_idx].iloc[-24 * 21:]
+    true = data.test_tasks[task_idx].test.labels.iloc[-lookback:]
+    curr_ax.plot(true, color='k', label='original labels')
+
+    pred_itl = model_itl.all_predictions[task_idx].iloc[-lookback:]
     curr_ax.plot(pred_itl, color='tab:red', label='Independent Learning')
 
-    pred = model_ltl.all_raw_predictions[task_idx].iloc[-24 * 21:]
-    pred = pred.loc[pred_itl.index]
-    true = pd.DataFrame(data.test_tasks[task_idx].test.raw_time_series, index=data.test_tasks[task_idx].test.raw_time_series.index)
-    true = true.loc[pred.index].iloc[-24 * 21:]
-    curr_ax.plot(true, color='k', label='Original')
-    pred = pd.DataFrame(np.mean([pred.values, pred.values, true.values.ravel(), true.values.ravel(), true.values.ravel(), true.values.ravel()], axis=0), index=pred.index)
+    pred = model_ltl.all_predictions[task_idx].iloc[-lookback:]
     curr_ax.plot(pred, color='tab:blue', label='Bias Meta-learning')
 
     curr_ax.axhline(y=0, color='tab:gray', linestyle=':')

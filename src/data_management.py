@@ -481,32 +481,25 @@ class MealearningDataHandler:
     def air_quality_madrid(self):
         import pickle
 
-        measures = pickle.load(open('madrid_data.pckl', "rb"))
-
         station_info = pd.read_csv('./data/air_quality_madrid/stations.csv')
         station_info.index = station_info.id
         station_names = []
         for station_id in station_info.index:
             station_names.append(station_info.loc[int(station_id)]['name'])
 
-        # station_ids = measures['station'].unique().tolist()
         station_ids = station_info.index
-        split_datasets = []
-        for station_id in station_ids:
-            # Four major pollutants https://www.blf.org.uk/support-for-you/air-pollution/types
-            # O3 (Ground-level Ozone)
-            # PM10 (Particulate Matter (soot and dust))
-            # SO2 (Sulphur Dioxide)
-            # NO2 (Nitrogen Dioxide)
-            df = measures.loc[measures.station.astype(int) == station_id].drop(['station'], axis=1).astype(np.float)
-            df = df[['O_3', 'PM10', 'SO_2', 'NO_2']]
-            split_datasets.append(df)
-
-        # for idx in range(len(station_ids)):
-        #     print(split_datasets[idx].head())
-        #     print(split_datasets[idx].tail())
-        #     for i in range(5):
-        #         print('')
+        # split_datasets = []
+        # measures = pickle.load(open('madrid_data.pckl', "rb"))
+        # for station_id in station_ids:
+        #     # Four major pollutants https://www.blf.org.uk/support-for-you/air-pollution/types
+        #     # O3 (Ground-level Ozone)
+        #     # PM10 (Particulate Matter (soot and dust))
+        #     # SO2 (Sulphur Dioxide)
+        #     # NO2 (Nitrogen Dioxide)
+        #     df = measures.loc[measures.station.astype(int) == station_id].drop(['station'], axis=1).astype(np.float)
+        #     df = df[['O_3', 'PM10', 'SO_2', 'NO_2']]
+        #     split_datasets.append(df)
+        split_datasets = pickle.load(open('split_stations.pckl', "rb"))
 
         all_full_time_series = []
         for idx in range(len(station_ids)):

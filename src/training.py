@@ -5,10 +5,6 @@ from src.independent_learning import ITL
 
 
 def training(data, training_settings):
-    """
-
-    :rtype: object
-    """
     method = training_settings.method
 
     if method == 'ITL':

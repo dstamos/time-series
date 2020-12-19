@@ -66,17 +66,22 @@ class Sarimax:
 
             tr_time_series = test_tasks[task_idx].training.raw_time_series
             val_time_series = test_tasks[task_idx].validation.raw_time_series
-            time_series = pd.concat([tr_time_series, val_time_series, test_time_series])
 
-            mod = SARIMAX(time_series, exog=exog_variables,
-                          order=(self.ar_order, self.difference_order, self.ma_order),
-                          seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
-            res = mod.filter(model.params)
-            insample = res.predict()
-            # TODO Predict "horizon" steps forward using the predictions
-            curr_predictions = insample.loc[test_time_series.index]
+            horizon = self.settings.horizon
+            curr_predictions = pd.Series(index=test_time_series.index)
+            for idx in range(1, len(test_time_series) - horizon):
+                curr_test_time_series = test_time_series.iloc[:idx]
+                time_series = pd.concat([tr_time_series, val_time_series, curr_test_time_series])
 
-            test_performance = self._performance_check(test_time_series, curr_predictions)
+                mod = SARIMAX(time_series, exog=exog_variables,
+                              order=(self.ar_order, self.difference_order, self.ma_order),
+                              seasonal_order=(self.seasonal_ar_order, self.seasonal_difference_order, self.seasonal_ma_order, self.seasonal_period))
+                res = mod.filter(model.params)
+                # forecast = res.forecast(steps=self.settings.horizon)
+                forecast = res.forecast(steps=horizon).iloc[-1]
+                curr_predictions.iloc[idx + horizon] = forecast
+            curr_predictions.dropna(inplace=True)
+            test_performance = self._performance_check(test_time_series.loc[curr_predictions.index], curr_predictions)
             all_predictions.append(curr_predictions)
             all_forecasts.append(curr_forecast)
             all_test_perf.append(test_performance)

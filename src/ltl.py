@@ -38,8 +38,8 @@ class BiasLTL:
                 x_train = training_tasks[task_idx].training.features.values
                 y_train = training_tasks[task_idx].training.labels.values.ravel()
 
-                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=10)
-                # print(mean_vector)
+                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=1)
+
                 all_average_vectors.append(mean_vector)
             #####################################################
             # Validation only needs to be measured at the very end, after we've trained on all training tasks
@@ -49,17 +49,12 @@ class BiasLTL:
                 x_val = validation_tasks[validation_task_idx].validation.features.values
                 y_val = validation_tasks[validation_task_idx].validation.labels
 
-                temp_best_val_perf = np.Inf
-                for temp_regul_param in self.settings.regularization_parameter_range:
-                    # for temp_regul_param in [regularization_parameter]:
-                    w = self._solve_wrt_w(mean_vector, x_train, y_train, temp_regul_param)
+                w = self._solve_wrt_w(mean_vector, x_train, y_train, regularization_parameter)
 
-                    curr_predictions = pd.Series(x_val @ w, index=y_val.index)
-                    errors = performance_check(y_val, curr_predictions)
-                    temp_val_perf = errors['nmse']
-                    if temp_val_perf < temp_best_val_perf:
-                        temp_best_val_perf = temp_val_perf
-                validation_performances.append(temp_best_val_perf)
+                curr_predictions = pd.Series(x_val @ w, index=y_val.index)
+                errors = performance_check(y_val, curr_predictions)
+                temp_val_perf = errors['nmse']
+                validation_performances.append(temp_val_perf)
             validation_performance = np.mean(validation_performances)
             print(f'LTL | lambda: {regularization_parameter:6e} | val performance: {validation_performance:12.5f} | {time() - tt:5.2f}sec')
 
@@ -111,9 +106,6 @@ class BiasLTL:
                         validation_criterion = False
 
                     if validation_criterion:
-                        print(regularization_parameter)
-                        print(validation_performance)
-                        print('')
                         best_val_performance = validation_performance
                         best_w = w
 
@@ -162,7 +154,7 @@ class BiasLTL:
             y_n_hat = 1 / np.sqrt(n) * (y - x @ lstsq(c_n_hat, x.T @ y)[0] / n)
 
             grad_h = x_n_hat.T @ (x_n_hat @ curr_h - y_n_hat)
-            grad_h = np.clip(grad_h, a_min=-10**10, a_max=10**10)
+            grad_h = np.clip(grad_h, a_min=-10**3, a_max=10**3)
             return grad_h
             # import warnings
             # with warnings.catch_warnings():
