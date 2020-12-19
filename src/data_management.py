@@ -581,7 +581,7 @@ class MealearningDataHandler:
             bucket = []
             for task_index in task_indexes:
                 # Split the dataset for the current tasks into training/validation/test
-                fixed_val_pct = 0.2
+                fixed_val_pct = 0.4
                 temp = all_full_time_series[task_index].iloc[-(n_tr_points + n_test_points):-n_test_points]
                 training_time_series, validation_time_series = train_test_split(temp, test_size=fixed_val_pct, shuffle=False)
                 test_time_series = all_full_time_series[task_index].iloc[-n_test_points:]

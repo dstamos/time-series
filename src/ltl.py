@@ -38,8 +38,9 @@ class BiasLTL:
                 x_train = training_tasks[task_idx].training.features.values
                 y_train = training_tasks[task_idx].training.labels.values.ravel()
 
-                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=1)
-
+                mean_vector = self._solve_wrt_h(mean_vector, x_train, y_train, regularization_parameter, curr_iteration=task_idx, inner_iter_cap=10)
+                if all_average_vectors:
+                    mean_vector = (task_idx * all_average_vectors[-1] + mean_vector) / (task_idx + 1)
                 all_average_vectors.append(mean_vector)
             #####################################################
             # Validation only needs to be measured at the very end, after we've trained on all training tasks
@@ -50,6 +51,7 @@ class BiasLTL:
                 y_val = validation_tasks[validation_task_idx].validation.labels
 
                 w = self._solve_wrt_w(mean_vector, x_train, y_train, regularization_parameter)
+                # w = mean_vector
 
                 curr_predictions = pd.Series(x_val @ w, index=y_val.index)
                 errors = performance_check(y_val, curr_predictions)
@@ -76,9 +78,7 @@ class BiasLTL:
     def predict(self, test_tasks):
         test_tasks = handle_data(test_tasks, self.lags, self.settings.use_exog)
         test_per_per_training_task = []
-        tt = time()
-        for meta_param_idx in [len(self.all_metaparameters)-1]:
-        # for meta_param_idx in range(len(self.all_metaparameters)):
+        for meta_param_idx in range(len(self.all_metaparameters)):
             meta_param = self.all_metaparameters[meta_param_idx]
             all_test_perf = []
             predictions = []
@@ -121,7 +121,6 @@ class BiasLTL:
                 predictions.append(curr_predictions)
             avg_perf = float(np.mean(all_test_perf))
             test_per_per_training_task.append(avg_perf)
-            # print('%3d/%3d | %5.2fsec' % (meta_param_idx, len(self.all_metaparameters), time() - tt))
         self.all_predictions = predictions
         self.all_raw_predictions = all_raw_predictions
         self.test_per_per_training_task = test_per_per_training_task
@@ -139,7 +138,7 @@ class BiasLTL:
         #     plt.plot(test_per_per_training_task)
         #     plt.ticklabel_format(useOffset=False)
         #     plt.pause(0.01)
-        #     # plt.show()
+        #     plt.show()
 
     @staticmethod
     def _solve_wrt_h(h, x, y, param, curr_iteration=0, inner_iter_cap=10):
