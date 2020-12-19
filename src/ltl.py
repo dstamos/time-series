@@ -25,6 +25,7 @@ class BiasLTL:
 
         best_val_performance = np.Inf
         mean_vector = np.random.randn(dims) / norm(np.random.randn(dims))
+        tt = time()
         for regularization_parameter in self.settings.regularization_parameter_range:
             validation_performances = []
             all_average_vectors = []
@@ -41,31 +42,26 @@ class BiasLTL:
                 # print(mean_vector)
                 all_average_vectors.append(mean_vector)
             #####################################################
-            if np.all(np.isnan(mean_vector)):
-                print('mean_vector:', mean_vector)
-                continue
             # Validation only needs to be measured at the very end, after we've trained on all training tasks
             for validation_task_idx in range(len(validation_tasks)):
                 x_train = validation_tasks[validation_task_idx].training.features.values
                 y_train = validation_tasks[validation_task_idx].training.labels.values.ravel()
-                # FIXME The validation of the validation tasks is going unused here
-                x_test = validation_tasks[validation_task_idx].test.features.values
-                y_test = validation_tasks[validation_task_idx].test.labels.values.ravel()
+                x_val = validation_tasks[validation_task_idx].validation.features.values
+                y_val = validation_tasks[validation_task_idx].validation.labels
 
                 temp_best_val_perf = np.Inf
                 for temp_regul_param in self.settings.regularization_parameter_range:
+                    # for temp_regul_param in [regularization_parameter]:
                     w = self._solve_wrt_w(mean_vector, x_train, y_train, temp_regul_param)
 
-                    curr_predictions = pd.Series(x_test @ w, index=validation_tasks[validation_task_idx].test.labels.index)
-                    raw_predictions = labels_to_raw(curr_predictions, validation_tasks[validation_task_idx].test.raw_time_series, self.settings.horizon)
-                    raw_labels = validation_tasks[validation_task_idx].test.raw_time_series.loc[raw_predictions.index]
-                    errors = performance_check(raw_labels, raw_predictions)
-                    temp_val_perf = errors['mse']
+                    curr_predictions = pd.Series(x_val @ w, index=y_val.index)
+                    errors = performance_check(y_val, curr_predictions)
+                    temp_val_perf = errors['nmse']
                     if temp_val_perf < temp_best_val_perf:
                         temp_best_val_perf = temp_val_perf
                 validation_performances.append(temp_best_val_perf)
             validation_performance = np.mean(validation_performances)
-            print(f'LTL | lambda: {regularization_parameter:6e} | val performance: {validation_performance:12.5f}')
+            print(f'LTL | lambda: {regularization_parameter:6e} | val performance: {validation_performance:12.5f} | {time() - tt:5.2f}sec')
 
             if validation_performance < best_val_performance:
                 validation_criterion = True
@@ -78,7 +74,7 @@ class BiasLTL:
 
                 best_average_vectors = all_average_vectors
                 best_mean_vector = mean_vector
-        print(f'LTL | lambda: {best_param:6e} | val performance: {best_val_performance:20.16f}')
+        print(f'LTL | best lambda: {best_param:6e} | best val performance: {best_val_performance:12.5f} | {time() - tt:5.2f}sec')
         self.all_metaparameters = best_average_vectors
         self.final_metaparameters = best_mean_vector
 
@@ -97,17 +93,17 @@ class BiasLTL:
                 y_train = test_tasks[task_idx].training.labels.values.ravel()
 
                 x_val = test_tasks[task_idx].validation.features.values
-                y_val = test_tasks[task_idx].validation.labels.values.ravel()
+                y_val = test_tasks[task_idx].validation.labels
+
+                # best_w = meta_param
 
                 best_val_performance = np.Inf
                 for regularization_parameter in self.settings.regularization_parameter_range:
                     w = self._solve_wrt_w(meta_param, x_train, y_train, regularization_parameter)
 
-                    curr_predictions = pd.Series(x_val @ w, index=test_tasks[task_idx].validation.labels.index)
-                    raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].validation.raw_time_series, self.settings.horizon)
-                    raw_labels = test_tasks[task_idx].validation.raw_time_series.loc[raw_predictions.index]
-                    errors = performance_check(raw_labels, raw_predictions)
-                    validation_performance = errors['mse']
+                    curr_predictions = pd.Series(x_val @ w, index=y_val.index)
+                    errors = performance_check(y_val, curr_predictions)
+                    validation_performance = errors['nmse']
 
                     if validation_performance < best_val_performance:
                         validation_criterion = True
@@ -115,18 +111,19 @@ class BiasLTL:
                         validation_criterion = False
 
                     if validation_criterion:
+                        print(regularization_parameter)
+                        print(validation_performance)
+                        print('')
                         best_val_performance = validation_performance
                         best_w = w
 
                 x_test = test_tasks[task_idx].test.features.values
-                y_test = test_tasks[task_idx].test.labels.values.ravel()
-                curr_predictions = pd.Series(x_test @ best_w, index=test_tasks[task_idx].test.labels.index)
-                raw_predictions = labels_to_raw(curr_predictions, test_tasks[task_idx].test.raw_time_series, self.settings.horizon)
-                raw_labels = test_tasks[task_idx].test.raw_time_series.loc[raw_predictions.index]
-                all_raw_predictions.append(raw_predictions)
+                y_test = test_tasks[task_idx].test.labels
+                curr_predictions = pd.Series(x_test @ best_w, index=y_test.index)
+                all_raw_predictions.append(curr_predictions)
 
-                errors = performance_check(raw_labels, raw_predictions)
-                test_performance = errors['mse']
+                errors = performance_check(y_test, curr_predictions)
+                test_performance = errors['nmse']
 
                 all_test_perf.append(test_performance)
                 predictions.append(curr_predictions)
@@ -136,7 +133,7 @@ class BiasLTL:
         self.all_predictions = predictions
         self.all_raw_predictions = all_raw_predictions
         self.test_per_per_training_task = test_per_per_training_task
-        print(f'LTL | lambda: {np.nan:6e} | test performance: {avg_perf:20.16f}')
+        print(f'LTL | lambda: {np.nan:6e} | test performance: {avg_perf:12.5f}')
 
         # import matplotlib.pyplot as plt
         # plt.figure()
@@ -158,7 +155,19 @@ class BiasLTL:
         n = len(y)
 
         def grad(curr_h):
-            return 2 * param**2 * n * x.T @ matrix_power(pinv(x @ x.T + param * n * np.eye(n)), 2) @ ((x @ curr_h).ravel() - y)
+            from scipy.linalg import lstsq
+
+            c_n_hat = x.T @ x / n + param * np.eye(x.shape[1])
+            x_n_hat = (param / np.sqrt(n) * lstsq(c_n_hat.T, x.T)[0]).T
+            y_n_hat = 1 / np.sqrt(n) * (y - x @ lstsq(c_n_hat, x.T @ y)[0] / n)
+
+            grad_h = x_n_hat.T @ (x_n_hat @ curr_h - y_n_hat)
+            grad_h = np.clip(grad_h, a_min=-10**10, a_max=10**10)
+            return grad_h
+            # import warnings
+            # with warnings.catch_warnings():
+            #     warnings.filterwarnings("ignore")
+            #     return 2 * param**2 * n * x.T @ matrix_power(pinv(x @ x.T + param * n * np.eye(n)), 2) @ ((x @ curr_h).ravel() - y)
 
         i = 0
         curr_iteration = curr_iteration * inner_iter_cap
@@ -166,7 +175,7 @@ class BiasLTL:
             i = i + 1
             prev_h = h
             curr_iteration = curr_iteration + 1
-            step_size = np.sqrt(2) * step_size_bit / ((step_size_bit + 1) * np.sqrt(curr_iteration))
+            step_size = min(np.sqrt(2) * step_size_bit / ((step_size_bit + 1) * np.sqrt(curr_iteration)), 0.5)
             h = prev_h - step_size * grad(prev_h)
 
         return h
@@ -176,7 +185,7 @@ class BiasLTL:
         n = len(y)
         dims = x.shape[1]
 
-        c_n_lambda = x.T @ x / n + param * np.eye(dims)
-        w = pinv(c_n_lambda) @ (x.T @ y / n + param * h).ravel()
+        from scipy.linalg import lstsq
+        w = lstsq(x.T @ x / n + param * np.eye(dims), (x.T @ y / n + param * h))[0]
 
         return w

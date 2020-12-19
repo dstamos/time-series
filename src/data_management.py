@@ -124,6 +124,8 @@ class MealearningDataHandler:
         self.validation_tasks_indexes = None
         self.test_tasks_indexes = None
 
+        self.extra_info = None
+
         if self.settings.dataset == 'm4':
             self.m4_gen()
         elif self.settings.dataset == 'sine':
@@ -350,8 +352,8 @@ class MealearningDataHandler:
         n_total_points = self.settings.n_total_points
         lags = 2
 
-        w_2_centroid = np.random.uniform(-0.99, 0.99)  # |φ_2| < 1
-        w_1_centroid = np.random.uniform(w_2_centroid - 1, 1 - w_2_centroid)  # φ_1 + φ_2 < 1 and φ_2 - φ_1 < 1
+        w_2_centroid = np.random.uniform(-0.99, 0.99)
+        w_1_centroid = np.random.uniform(w_2_centroid - 1, 1 - w_2_centroid)  
         # Make sure the centroids themselves satisfy the ar conditions
         w_1_centroid, w_2_centroid = ar_constraints(w_1_centroid, w_2_centroid)
         w_std_wrt_w = 0.1
@@ -477,27 +479,28 @@ class MealearningDataHandler:
         self.test_tasks_indexes = test_tasks_indexes
 
     def air_quality_madrid(self):
-        import os
+        import pickle
 
-        partials = list()
+        measures = pickle.load(open('madrid_data.pckl', "rb"))
 
-        with pd.HDFStore('./data/air_quality_madrid/madrid.h5') as data:
-            stations = [k[1:] for k in data.keys() if k != '/master']
-            for station in stations:
-                df = data[station]
-                df['station'] = station
-                partials.append(df)
+        station_info = pd.read_csv('./data/air_quality_madrid/stations.csv')
+        station_info.index = station_info.id
+        station_names = []
+        for station_id in station_info.index:
+            station_names.append(station_info.loc[int(station_id)]['name'])
 
-        measures = pd.concat(partials, sort=False).sort_index()
-        measures.head()
-
-        # measures = measures.astype(np.float)
-        # ts = np.sum(measures, axis=1)
-
-        station_ids = measures['station'].unique().tolist()
+        # station_ids = measures['station'].unique().tolist()
+        station_ids = station_info.index
         split_datasets = []
         for station_id in station_ids:
-            split_datasets.append(measures.loc[measures.station == station_id].drop(['station'], axis=1).astype(np.float))
+            # Four major pollutants https://www.blf.org.uk/support-for-you/air-pollution/types
+            # O3 (Ground-level Ozone)
+            # PM10 (Particulate Matter (soot and dust))
+            # SO2 (Sulphur Dioxide)
+            # NO2 (Nitrogen Dioxide)
+            df = measures.loc[measures.station.astype(int) == station_id].drop(['station'], axis=1).astype(np.float)
+            df = df[['O_3', 'PM10', 'SO_2', 'NO_2']]
+            split_datasets.append(df)
 
         # for idx in range(len(station_ids)):
         #     print(split_datasets[idx].head())
@@ -509,11 +512,9 @@ class MealearningDataHandler:
         for idx in range(len(station_ids)):
 
             ts = np.sum(split_datasets[idx].fillna(method='ffill'), axis=1)
-            ts = ts.resample('H', fill_method='ffill')
+            ts = ts.resample('H').pad()
 
-            # TODO
             ts = ts.diff().dropna()
-            # TODO
 
             all_full_time_series.append(ts.to_frame('madrid_station_' + str(idx)))
 
@@ -524,8 +525,45 @@ class MealearningDataHandler:
         #     ax.plot(all_time_series[idx])
         #     plt.show()
 
-        n_tr_points = 500
-        n_test_points = 300
+        n_tr_points = self.settings.n_tr_points
+        n_test_points = self.settings.n_test_points
+
+        # n_total = n_tr_points + n_test_points
+        # import matplotlib.pyplot as plt
+        # my_dpi = 100
+        # n_plots = min(len(all_full_time_series), 338)
+        # fig, ax = plt.subplots(figsize=(1920 / my_dpi, 2 * 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+        # fig.subplots_adjust(hspace=.5)
+        # for time_series_idx in range(n_plots):
+        #     curr_ax = ax[time_series_idx]
+        #     curr_ax.plot(all_full_time_series[time_series_idx].iloc[-n_total:])
+        #     curr_ax.axhline(y=0, color='tab:gray', linestyle=':')
+        #     curr_ax.set_ylabel(station_names[time_series_idx], fontsize=8)
+        #
+        #     curr_ax.spines["top"].set_visible(False)
+        #     curr_ax.spines["right"].set_visible(False)
+        #     curr_ax.spines["bottom"].set_visible(False)
+        #
+        # fig.align_ylabels()
+        # plt.suptitle('Madrid Air Quality')
+        # plt.savefig("madrid_data_raw.jpg")
+        # plt.pause(0.1)
+        # plt.show()
+        # exit()
+
+        # BBox = ((-3.8311, -3.5551,
+        #          40.2950, 40.5190,))
+        #
+        # my_dpi = 100
+        # fig, ax = plt.subplots(figsize=(1920 / my_dpi, 1920 / my_dpi), facecolor='white', dpi=my_dpi, nrows=1, ncols=1)
+        #
+        # ruh_m = plt.imread('./data/air_quality_madrid/stations.png')
+        # ax.imshow(ruh_m, zorder=0, extent=BBox)
+        # ax.scatter(station_info['lon'].values, station_info['lat'].values, c='r', s=200)
+        # # ax.set_title('Plotting Spatial Data on Riyadh Map')
+        # ax.set_xlim(BBox[0], BBox[1])
+        # ax.set_ylim(BBox[2], BBox[3])
+        # plt.show()
 
         training_tasks_pct = self.settings.training_tasks_pct
         validation_tasks_pct = self.settings.validation_tasks_pct
@@ -558,19 +596,19 @@ class MealearningDataHandler:
                 # Features will be filled later within the method, if it requires lagging etc, which is a parameter
                 training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 training.features = None
-                training.labels = get_labels(training_time_series, horizon=12)
+                training.labels = get_labels(training_time_series, horizon=self.settings.forecast_length)
                 training.raw_time_series = training_time_series
                 training.n_points = len(training.labels)
 
                 validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 validation.features = None
-                validation.labels = get_labels(validation_time_series, horizon=12)
+                validation.labels = get_labels(validation_time_series, horizon=self.settings.forecast_length)
                 validation.raw_time_series = validation_time_series
                 validation.n_points = len(validation.labels)
 
                 test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
                 test.features = None
-                test.labels = get_labels(test_time_series, horizon=12)
+                test.labels = get_labels(test_time_series, horizon=self.settings.forecast_length)
                 test.raw_time_series = test_time_series
                 test.n_points = len(test.labels)
 
@@ -583,7 +621,7 @@ class MealearningDataHandler:
         self.training_tasks = dataset_splits(training_tasks_indexes)
         self.validation_tasks = dataset_splits(validation_tasks_indexes)
         self.test_tasks = dataset_splits(test_tasks_indexes)
-
         self.training_tasks_indexes = training_tasks_indexes
         self.validation_tasks_indexes = validation_tasks_indexes
         self.test_tasks_indexes = test_tasks_indexes
+        self.extra_info = station_info

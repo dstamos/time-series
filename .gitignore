@@ -1,4 +1,7 @@
 /.idea/
+/data
+/results
+*.pckl
 scratch.py
 *.pyc
 *.png

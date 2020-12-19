@@ -22,12 +22,14 @@ def lag_features(indicators, lags, keep_original=True):
 def prune_data(features, labels=None):
     features = features.replace([np.inf, -np.inf], np.nan)
     nan_points_idx = features.index[pd.isnull(features).any(1).to_numpy().nonzero()[0]]
-    all_zeroes_idx = features.index[np.where(np.all(features == 0, axis=1))[0]]
+    # Why was this even added?
+    # all_zeroes_idx = features.index[np.where(np.all(features == 0, axis=1))[0]]
 
     if labels is not None:
         nan_labels_idx = labels.index[pd.isnull(labels).any(1).to_numpy().nonzero()[0]]
-        idx_to_drop = np.concatenate((nan_labels_idx, nan_points_idx, all_zeroes_idx))
+        idx_to_drop = np.concatenate((nan_labels_idx, nan_points_idx))
         labels = labels.drop(idx_to_drop)
+        labels.index.freq = labels.index.inferred_freq
         features = features.drop(idx_to_drop)
         return features, labels
     else:
@@ -97,18 +99,22 @@ def labels_to_raw(labels, raw_times_series, horizon):
     # first_idx = raw_times_series.index.get_loc(labels.index[0])
     # first_value = raw_times_series.iloc[first_idx].values[0]
 
-    raw_predictions = pd.Series(index=raw_times_series.index)
-    for idx, actual_index in enumerate(labels.index):
-        ts_index = raw_times_series.index.get_loc(actual_index)
-        ts_value = raw_times_series.iloc[ts_index].values[0]
+    raw_predictions = labels
 
-        # curr_pred = labels.loc[actual_index]
-        # future_ts_value = ts_value + ts_value * curr_pred
-
-        future_ts_value = labels.loc[actual_index]
-
-        raw_predictions.loc[actual_index + horizon] = future_ts_value
-    raw_predictions.dropna(inplace=True)
+    # raw_predictions = pd.Series(index=raw_times_series.index)
+    # for idx, actual_index in enumerate(labels.index):
+    #     ts_index = raw_times_series.index.get_loc(actual_index)
+    #     ts_value = raw_times_series.iloc[ts_index].values[0]
+    #
+    #     # curr_pred = labels.loc[actual_index]
+    #     # future_ts_value = ts_value + ts_value * curr_pred
+    #
+    #     future_ts_value = labels.loc[actual_index]
+    #
+    #     # raw_predictions.loc[actual_index + horizon] = future_ts_value
+    #     raw_predictions.loc[actual_index + horizon * actual_index.freq] = future_ts_value
+    #
+    # raw_predictions.dropna(inplace=True)
     return raw_predictions
 
 
@@ -125,5 +131,7 @@ def performance_check(y_true, y_pred):
         from sklearn.metrics import mean_squared_error
         mse = mean_squared_error(y_true, y_pred)
 
-    errors = {'mse': mse, 'mape': mape}
+        nmse = mse / np.var(y_true)
+
+    errors = {'mse': mse, 'mape': mape, 'nmse': nmse}
     return errors
