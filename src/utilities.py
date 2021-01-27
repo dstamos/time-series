@@ -76,9 +76,28 @@ def handle_data(list_of_tasks, lags, use_exog):
             features_val = lag_features(raw_time_series_val, lags)
             features_ts = lag_features(raw_time_series_ts, lags)
 
+        # features_tr = features_tr / norm(features_tr, axis=1).reshape(-1, 1)
+        # features_val = features_val / norm(features_val, axis=1).reshape(-1, 1)
+        # features_ts = features_ts / norm(features_ts, axis=1).reshape(-1, 1)
+
         list_of_tasks[task_idx].training.features, list_of_tasks[task_idx].training.labels = prune_data(features_tr, y_train)
         list_of_tasks[task_idx].validation.features, list_of_tasks[task_idx].validation.labels = prune_data(features_val, y_validation)
         list_of_tasks[task_idx].test.features, list_of_tasks[task_idx].test.labels = prune_data(features_ts, y_test)
+
+        # from sklearn.preprocessing import StandardScaler
+        # sc = StandardScaler()
+        #
+        # list_of_tasks[task_idx].training.features = pd.DataFrame(sc.fit_transform(list_of_tasks[task_idx].training.features), columns=features_tr.columns, index=list_of_tasks[task_idx].training.labels.index)
+        # list_of_tasks[task_idx].validation.features = pd.DataFrame(sc.transform(list_of_tasks[task_idx].validation.features), columns=features_val.columns, index=list_of_tasks[task_idx].validation.labels.index)
+        # list_of_tasks[task_idx].test.features = pd.DataFrame(sc.transform(list_of_tasks[task_idx].test.features), columns=features_ts.columns, index=list_of_tasks[task_idx].test.labels.index)
+
+        # list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1).reshape(-1, 1)
+        # list_of_tasks[task_idx].validation.features = list_of_tasks[task_idx].validation.features / norm(list_of_tasks[task_idx].validation.features, axis=1).reshape(-1, 1)
+        # list_of_tasks[task_idx].test.features = list_of_tasks[task_idx].test.features / norm(list_of_tasks[task_idx].test.features, axis=1).reshape(-1, 1)
+
+        # features_tr['bias'] = 1
+        # features_val['bias'] = 1
+        # features_ts['bias'] = 1
 
         # Normalise the features
         # list_of_tasks[task_idx].training.features = list_of_tasks[task_idx].training.features / norm(list_of_tasks[task_idx].training.features, axis=1, keepdims=True)
@@ -131,7 +150,10 @@ def performance_check(y_true, y_pred):
         from sklearn.metrics import mean_squared_error
         mse = mean_squared_error(y_true, y_pred)
 
-        nmse = mse / np.var(y_true)
+        if np.all(y_true == 0):
+            nmse = 1
+        else:
+            nmse = mse / np.var(y_true)
 
     errors = {'mse': mse, 'mape': mape, 'nmse': nmse}
     return errors

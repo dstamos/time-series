@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import csv
+import pickle
 from src.utilities import forward_shift_ts
 from collections import namedtuple
 from sklearn.model_selection import train_test_split
@@ -133,7 +134,7 @@ class MealearningDataHandler:
         elif self.settings.dataset == 'synthetic_ar':
             self.synthetic_ar()
         elif self.settings.dataset == 'air_quality_madrid':
-            self.air_quality_madrid()
+            self.air_quality_eu()
         else:
             raise ValueError('Invalid dataset')
 
@@ -499,7 +500,13 @@ class MealearningDataHandler:
         #     df = measures.loc[measures.station.astype(int) == station_id].drop(['station'], axis=1).astype(np.float)
         #     df = df[['O_3', 'PM10', 'SO_2', 'NO_2']]
         #     split_datasets.append(df)
-        split_datasets = pickle.load(open('split_stations.pckl', "rb"))
+
+        try:
+            split_datasets = pickle.load(open('split_stations.pckl', "rb"))
+        except:
+            pass
+            # import pickle5 as pickle
+            # split_datasets = pickle.load(open('split_stations.pckl', "rb"))
 
         all_full_time_series = []
         for idx in range(len(station_ids)):
@@ -521,28 +528,45 @@ class MealearningDataHandler:
         n_tr_points = self.settings.n_tr_points
         n_test_points = self.settings.n_test_points
 
-        # n_total = n_tr_points + n_test_points
-        # import matplotlib.pyplot as plt
-        # my_dpi = 100
-        # n_plots = min(len(all_full_time_series), 338)
-        # fig, ax = plt.subplots(figsize=(1920 / my_dpi, 2 * 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
-        # fig.subplots_adjust(hspace=.5)
-        # for time_series_idx in range(n_plots):
-        #     curr_ax = ax[time_series_idx]
-        #     curr_ax.plot(all_full_time_series[time_series_idx].iloc[-n_total:])
-        #     curr_ax.axhline(y=0, color='tab:gray', linestyle=':')
-        #     curr_ax.set_ylabel(station_names[time_series_idx], fontsize=8)
+        n_total = n_tr_points + n_test_points
+        import matplotlib.pyplot as plt
+        my_dpi = 100
+        n_plots = min(len(all_full_time_series), 338)
+        fig, ax = plt.subplots(figsize=(1920 / my_dpi, 3 * 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+        fig.subplots_adjust(hspace=.5)
+        for time_series_idx in range(n_plots):
+            curr_ax = ax[time_series_idx]
+            curr_ax.plot(all_full_time_series[time_series_idx].iloc[-n_total:])
+            curr_ax.axhline(y=0, color='tab:gray', linestyle=':')
+            curr_ax.set_ylabel(station_names[time_series_idx], fontsize=8)
+
+            curr_ax.spines["top"].set_visible(False)
+            curr_ax.spines["right"].set_visible(False)
+            curr_ax.spines["bottom"].set_visible(False)
+
+        fig.align_ylabels()
+        plt.suptitle('Madrid Air Quality')
+        plt.savefig("madrid_data_raw.jpg")
+        plt.pause(0.1)
+        plt.show()
+        exit()
         #
-        #     curr_ax.spines["top"].set_visible(False)
-        #     curr_ax.spines["right"].set_visible(False)
-        #     curr_ax.spines["bottom"].set_visible(False)
+        # print(np.min(station_info['lon']))
+        # print(np.max(station_info['lon']))
         #
-        # fig.align_ylabels()
-        # plt.suptitle('Madrid Air Quality')
-        # plt.savefig("madrid_data_raw.jpg")
-        # plt.pause(0.1)
-        # plt.show()
-        # exit()
+        # print(np.min(station_info['lat']))
+        # print(np.max(station_info['lat']))
+        #
+        # -3.77461
+        # -3.58003
+        # 40.34713
+        # 40.51805
+        #
+        # new:
+        # -3.7995
+        # -3.5505
+        # 40.3370
+        # 40.5281
 
         # BBox = ((-3.8311, -3.5551,
         #          40.2950, 40.5190,))
@@ -618,3 +642,307 @@ class MealearningDataHandler:
         self.validation_tasks_indexes = validation_tasks_indexes
         self.test_tasks_indexes = test_tasks_indexes
         self.extra_info = station_info
+
+    def air_quality_eu(self):
+        import airbase
+        import dask
+        import os
+        import time
+        import glob
+        import requests
+
+        download = False
+        merge = False
+        load_precooked = True
+
+        if download is True:
+            print('Downloading the raw data.')
+            if not os.path.exists('./data/airbase_data'):
+                os.makedirs('./data/airbase_data')
+
+            client = airbase.AirbaseClient()
+
+            all_countries = client.all_countries
+            for curr_country in all_countries:
+                tt = time.time()
+
+                if not os.path.exists('./data/airbase_data/' + curr_country):
+                    os.makedirs('./data/airbase_data/' + curr_country)
+
+                r = client.request(country=curr_country, pl=['NO2', 'O3', 'PM10', 'SO2'], year_from=2015, preload_csv_links=True, verbose=False)
+                all_csv_links = r._csv_links
+                print(f'{curr_country} | {len(all_csv_links):5d} csv files')
+
+                def download_csv_link(url):
+                    filename = url[url.rfind('/')+1:]
+                    fullpath = './data/airbase_data/' + curr_country + '/' + filename
+                    if os.path.exists(fullpath):
+                        return
+
+                    with requests.Session() as s:
+                        attempts = 0
+                        while True:
+                            try:
+                                download = s.get(url)
+                                break
+                            except Exception as e:
+                                attempts = attempts + 1
+                                time.sleep(1)
+                                if attempts > 5:
+                                    print('Failed to download', url)
+                                    return
+                    try:
+                        decoded_content = download.content.decode('utf-8')
+                    except Exception as e:
+                        try:
+                            decoded_content = download.content.decode('utf-16')
+                        except Exception as e:
+                            print('Failed to decode.', url)
+                            return
+                    cr = csv.reader(decoded_content.splitlines(), delimiter=',')
+                    my_list = list(cr)
+
+                    with open(fullpath, "w", newline="") as f:
+                        writer = csv.writer(f, delimiter='\t')
+                        writer.writerows(my_list)
+                    return
+
+                parallel_output = []
+                parallel_inputs = zip(all_csv_links)
+                for parameters in parallel_inputs:
+                    lazy_result = dask.delayed(download_csv_link)(*parameters)
+                    parallel_output.append(lazy_result)
+
+                n_workers = 8  # Set this to the number of cpus you have.
+                dask.compute(*parallel_output, scheduler='processes', num_workers=n_workers)
+                print(f'{curr_country} | {int(time.time() - tt):5d} sec')
+
+        all_countries = ['HR', 'ES', 'MT', 'CZ', 'CY', 'FI', 'PL', 'NO', 'SE', 'XK', 'BA', 'EE', 'IE', 'TR', 'RS', 'GI',
+                         'NL', 'SK', 'RO', 'AD', 'AL', 'IS', 'LU', 'CH', 'MK', 'IT', 'AT', 'DK', 'GR', 'FR', 'PT', 'LT', 'DE', 'BG']
+
+        if merge is True:
+            print('Merging the individual csv files per country.')
+            for curr_country in all_countries:
+                tt = time.time()
+                all_filenames = glob.glob(os.path.join("./data/airbase_data/" + curr_country, '*.{}'.format('csv')))
+                print(f'{curr_country} | {len(all_filenames):5d} csv files')
+
+                def merge_station_data(station_filenames):
+                    idx = pd.date_range(start="2015-01-01 00:00:00", end="2020-12-31 00:00:00", freq='1H')
+                    big_boy_df = pd.DataFrame(columns=['start_time', 'station_id', 'NO2', 'O3', 'PM10', 'SO2'], index=idx)
+                    big_boy_df.index = big_boy_df.index.astype(str)
+
+                    for i in range(len(station_filenames)):
+                        df = pd.read_csv(station_filenames[i], delimiter='\t')
+
+                        if df.shape[1] == 1:
+                            # Busted station
+                            print('Busted station.')
+                            return
+
+                        if df['AveragingTime'].iloc[0] != 'hour':
+                            continue
+
+                        pollutant = df['AirPollutant'].unique()
+                        if len(pollutant) > 1:
+                            if len(pollutant) == 2 and pd.isnull(pollutant).any():
+                                df = df.drop(np.where(pd.isnull(df['AirPollutant']))[0])
+                            else:
+                                raise ValueError('More than one pollutant per csv file', station_filenames[i])
+
+                        df['DatetimeBegin'] = df['DatetimeBegin'].str.slice(0, 19)
+                        df.index = df['DatetimeBegin'].values
+
+                        # Making the two dataframes compatible
+                        df = df.rename(columns={"DatetimeBegin": "start_time", "AirQualityStationEoICode": "station_id", "Concentration": pollutant[0]})
+
+                        big_boy_df = big_boy_df.combine_first(df[['start_time', 'station_id', pollutant[0]]])
+
+                    if pd.isnull(big_boy_df).all().all():
+                        return
+
+                    station_id = big_boy_df['station_id'].iloc[0]
+                    if len(big_boy_df['station_id'].unique()) > 1:
+                        if len(big_boy_df['station_id'].unique()) == 2 and pd.isnull(big_boy_df['station_id'].unique()).any():
+                            # Some stations miss the exact station name (but the filename "id" matching confirms it)
+                            station_id = big_boy_df['station_id'].unique()[~pd.isnull(big_boy_df['station_id'].unique())][0]
+                        else:
+                            print('one', len(big_boy_df['station_id'].unique()) == 2)
+                            print('two', pd.isnull(big_boy_df['station_id'].unique()).any())
+                            print('three', big_boy_df['station_id'].unique())
+                            raise ValueError('More than one station in the set of csv files', station_filenames)
+
+                    os.makedirs('./data/airbase_data_merged_stations', exist_ok=True)
+                    full_path = os.path.join('./data/airbase_data_merged_stations/', curr_country + '_' + str(station_id) + '.csv')
+                    big_boy_df.to_csv(full_path, sep='\t')
+
+                unique_station_file_identifiers = list(set([s.split('_')[-3] for s in all_filenames]))
+                filenames_grouped_per_station = []
+                for identifier in unique_station_file_identifiers:
+                    relevant_filenames = [filename if identifier == filename.split('_')[-3] else None for filename in all_filenames]
+                    relevant_filenames = list(filter(None, relevant_filenames))
+
+                    filenames_grouped_per_station.append(relevant_filenames)
+
+                parallel_output = []
+                parallel_inputs = zip(filenames_grouped_per_station)
+                for parameters in parallel_inputs:
+                    lazy_result = dask.delayed(merge_station_data)(*parameters)
+                    parallel_output.append(lazy_result)
+
+                n_workers = 8  # Set this to the number of cpus you have.
+                dask.compute(*parallel_output, scheduler='processes', num_workers=n_workers)
+                # dask.compute(*parallel_output, scheduler='single-threaded', num_workers=n_workers)
+
+                print(f'{curr_country} | {int(time.time() - tt):5d} sec')
+
+        ##############################################################################################
+        ##############################################################################################
+        ##############################################################################################
+        load_precooked = True
+        if load_precooked is False:
+            all_station_filenames = glob.glob(os.path.join("./data/airbase_data_merged_stations/", '*.{}'.format('csv')))
+            all_full_time_series = []
+            for idx, filename in enumerate(all_station_filenames):
+                ts = pd.read_csv(filename, delimiter='\t', index_col=0, error_bad_lines=False, verbose=False)
+                station_id = ts['station_id'].unique()
+                station_id = station_id[~pd.isnull(station_id)][0]
+                # Because of the way I constructed the data, it might have some nan values before and after the actual data
+                ts = ts.loc[ts.first_valid_index():ts.last_valid_index()]
+                ts = ts[~ts.index.duplicated(keep='last')]
+
+                ts = ts[['NO2', 'O3', 'PM10', 'SO2']].sum(axis=1, min_count=1)
+
+                n_nans = len(np.where(ts.isnull())[0])
+                if n_nans / len(ts) > 0.05:
+                    print(f'{idx:5d} | {filename:s} | {n_nans / len(ts):4.2f}')
+                    continue
+                # print(f'{idx:5d} | {filename:s} | {n_nans:5d}')
+                # TODO If more than say 10% is nan, remove the station
+                ts = ts.fillna(method='ffill')
+                # TODO Fill backwards as well?
+
+                ts.index = pd.to_datetime(ts.index, format='%Y-%m-%d %H:%M:%S')
+                unique_idx = ts.index.drop_duplicates(keep='last')
+                ts = ts.loc[unique_idx]
+
+                ts = ts.resample('H').pad()
+                ts = ts.diff().dropna()
+
+                all_full_time_series.append(ts.to_frame(filename.split('/')[-1] + '__' + str(station_id) + str(idx)))
+
+            pickle.dump(all_full_time_series, open('./data/airbase_data_merged_stations/eu_data.pckl', "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            all_full_time_series = pickle.load(open('./data/airbase_data_merged_stations/eu_data.pckl', "rb"))
+
+        # Remove time series that don't have the "right" history
+        # all_full_time_series = all_full_time_series[:400]
+        n_ts = len(all_full_time_series)
+        bad_indexes = []
+        for idx in range(n_ts):
+            ts = all_full_time_series[idx]
+            if len(ts) == 0:
+                bad_indexes.append(idx)
+                continue
+
+            if 'DE_DESN093.csv__DESN0933880' == ts.columns[0]:
+                k = 1
+
+            end_date = ts.index[-1]
+            start_date = ts.index[0]
+            # FIXME Super hardcoded filter.
+            if end_date.year != 2020 or start_date.year == 2020:
+                # Because we don't want to want to train past a certain day.
+                # This is ensures that all times series at least "reach" 2020.
+                bad_indexes.append(idx)
+                continue
+            elif end_date.year == 2020 and end_date.month < 11:
+                bad_indexes.append(idx)
+                continue
+
+        # Remove the problematic time series
+        for index in sorted(bad_indexes, reverse=True):
+            del all_full_time_series[index]
+
+        n_tr_points = self.settings.n_tr_points
+        n_test_points = self.settings.n_test_points
+
+        n_total = n_tr_points + n_test_points
+        # import matplotlib.pyplot as plt
+        # my_dpi = 100
+        # n_plots = min(len(all_full_time_series), 338)
+        # fig, ax = plt.subplots(figsize=(1920 / my_dpi, 3 * 1080 / my_dpi), facecolor='white', dpi=my_dpi, nrows=n_plots, ncols=1)
+        # fig.subplots_adjust(hspace=.5)
+        # for time_series_idx in range(n_plots):
+        #     curr_ax = ax[time_series_idx]
+        #     curr_ax.plot(all_full_time_series[time_series_idx].iloc[-n_total:])
+        #     curr_ax.axhline(y=0, color='tab:gray', linestyle=':')
+        #     curr_ax.set_ylabel(station_names[time_series_idx], fontsize=8)
+        #
+        #     curr_ax.spines["top"].set_visible(False)
+        #     curr_ax.spines["right"].set_visible(False)
+        #     curr_ax.spines["bottom"].set_visible(False)
+        #
+        # fig.align_ylabels()
+        # plt.suptitle('Madrid Air Quality')
+        # plt.savefig("madrid_data_raw.jpg")
+        # plt.pause(0.1)
+        # plt.show()
+        # exit()
+
+        training_tasks_pct = self.settings.training_tasks_pct
+        validation_tasks_pct = self.settings.validation_tasks_pct
+        test_tasks_pct = self.settings.test_tasks_pct
+        training_tasks_indexes, temp_indexes = train_test_split(range(len(all_full_time_series)), test_size=1 - training_tasks_pct, shuffle=True)
+        validation_tasks_indexes, test_tasks_indexes = train_test_split(temp_indexes, test_size=test_tasks_pct / (test_tasks_pct + validation_tasks_pct))
+
+        def dataset_splits(task_indexes):
+            def get_labels(time_series, horizon=1):
+                y = time_series.shift(-horizon)
+                return y
+
+            bucket = []
+            for task_index in task_indexes:
+                # Split the dataset for the current tasks into training/validation/test
+                fixed_val_pct = 0.4
+                temp = all_full_time_series[task_index].iloc[-(n_tr_points + n_test_points):-n_test_points]
+                if len(temp) == 0:
+                    task_indexes.remove(task_index)
+                    continue
+                training_time_series, validation_time_series = train_test_split(temp, test_size=fixed_val_pct, shuffle=False)
+                test_time_series = all_full_time_series[task_index].iloc[-n_test_points:]
+
+                # Features will be filled later within the method, if it requires lagging etc, which is a parameter
+                training = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                training.features = None
+                training.labels = get_labels(training_time_series, horizon=self.settings.forecast_length)
+                training.raw_time_series = training_time_series
+                training.n_points = len(training.labels)
+
+                validation = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                validation.features = None
+                validation.labels = get_labels(validation_time_series, horizon=self.settings.forecast_length)
+                validation.raw_time_series = validation_time_series
+                validation.n_points = len(validation.labels)
+
+                test = namedtuple('Data', ['n_points', 'features', 'labels', 'raw_time_series'])
+                test.features = None
+                test.labels = get_labels(test_time_series, horizon=self.settings.forecast_length)
+                test.raw_time_series = test_time_series
+                test.n_points = len(test.labels)
+
+                if test.n_points < 12:
+                    print('k')
+
+                SetType = namedtuple('SetType', ['training', 'validation', 'test', 'n_tasks'])
+                data = SetType(training, validation, test, len(task_indexes))
+
+                bucket.append(data)
+            return bucket, task_indexes
+
+        self.training_tasks, training_tasks_indexes = dataset_splits(training_tasks_indexes)
+        self.validation_tasks, validation_tasks_indexes = dataset_splits(validation_tasks_indexes)
+        self.test_tasks, test_tasks_indexes = dataset_splits(test_tasks_indexes)
+        self.training_tasks_indexes = training_tasks_indexes
+        self.validation_tasks_indexes = validation_tasks_indexes
+        self.test_tasks_indexes = test_tasks_indexes

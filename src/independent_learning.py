@@ -31,7 +31,11 @@ class ITL:
             x_val = test_tasks[task_idx].validation.features.values
             y_val = test_tasks[task_idx].validation.labels
 
+            if task_idx == 368:
+                k = 1
+
             dims = x_train.shape[1]
+            # best_weight_vectors[task_idx] = np.zeros(dims)
 
             xtx = x_train.T @ x_train
             for regularization_parameter in self.settings.regularization_parameter_range:
@@ -55,7 +59,7 @@ class ITL:
                     best_val_performance = val_performance
                     best_weight_vectors[task_idx] = curr_w
                     all_val_perf[task_idx] = val_performance
-            print(f'LTL | {task_idx:3d} | val performance: {best_val_performance:12.5f} | {time() - tt:5.2f}sec')
+            print(f'ITL | {task_idx:3d} | val performance: {best_val_performance:12.5f} | {time() - tt:5.2f}sec')
         self.best_weight_vectors = best_weight_vectors
 
         self._predict(test_tasks)
@@ -68,7 +72,10 @@ class ITL:
             x_test = test_tasks[task_idx].test.features.values
             y_test = test_tasks[task_idx].test.labels
 
-            curr_predictions = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=y_test.index)
+            try:
+                curr_predictions = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=y_test.index)
+            except Exception as e:
+                raise ValueError(e)
             errors = performance_check(y_test, curr_predictions)
             test_perf = errors['nmse']
             all_test_perf.append(test_perf)
@@ -76,5 +83,6 @@ class ITL:
             all_raw_predictions.append(curr_predictions)
         self.all_test_perf = all_test_perf
         self.all_predictions = all_predictions
-        self.all_raw_predictions = all_raw_predictions
+        # self.all_raw_predictions = all_raw_predictions
+        self.best_weight_vectors = None
         print('ITL | test performance: %8.5f' % (np.nanmean(all_test_perf)))
