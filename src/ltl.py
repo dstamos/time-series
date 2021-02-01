@@ -8,7 +8,7 @@ from numpy.linalg.linalg import norm, pinv, matrix_power
 class BiasLTL:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.lags
+        self.lags = settings.curr_lags
 
         self.all_metaparameters = None
         self.final_metaparameters = None

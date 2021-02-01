@@ -10,7 +10,7 @@ from time import time
 class ITL:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.lags
+        self.lags = settings.curr_lags
 
         self.best_weight_vectors = None
         self.all_predictions = None

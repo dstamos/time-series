@@ -29,8 +29,9 @@ def prune_data(features, labels=None):
         nan_labels_idx = labels.index[pd.isnull(labels).any(1).to_numpy().nonzero()[0]]
         idx_to_drop = np.concatenate((nan_labels_idx, nan_points_idx))
         labels = labels.drop(idx_to_drop)
-        labels.index.freq = labels.index.inferred_freq
         features = features.drop(idx_to_drop)
+        labels.index.freq = labels.index.inferred_freq
+        features.index.freq = features.index.inferred_freq
         return features, labels
     else:
         features = features.drop(nan_points_idx)

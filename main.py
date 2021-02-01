@@ -5,8 +5,7 @@ import numpy as np
 import pandas as pd
 
 
-# noinspection PyInterpreter
-def main(curr_seed, n_tr_points, lags):
+def main(seed, n_tr_points, lags):
     # data_settings = {'dataset': 'm4',
     #                  'use_exog': False,
     #                  'training_tasks_pct': 0.80,
@@ -17,7 +16,7 @@ def main(curr_seed, n_tr_points, lags):
     #                  'test_points_pct': 0.7,
     #                  'forecast_length': 6}
 
-    data_settings = {'dataset': 'air_quality_madrid',
+    data_settings = {'dataset': 'air_quality_eu',
                      'use_exog': False,
                      'training_tasks_pct': 0.70,
                      'validation_tasks_pct': 0.1,
@@ -38,7 +37,6 @@ def main(curr_seed, n_tr_points, lags):
     #                  'forecast_length': 1}
 
     data_settings = Settings(data_settings)
-    seed = curr_seed
     #############################################################################
     np.random.seed(seed)
     data = MealearningDataHandler(data_settings)
@@ -139,9 +137,9 @@ if __name__ == "__main__":
     # tr_points_range = range(12, 201, 2)
 
     tt = time()
-    for seed in seed_range:
+    for curr_seed in seed_range:
         for tr_points in tr_points_range:
-            for lags in lags_range:
-                main(seed, tr_points, lags)
-                print(f'seed: {seed:3d} | #points: {tr_points:3d}| #lags: {lags:3d} | {time() - tt:5.2f}sec')
+            for curr_lags in lags_range:
+                main(curr_seed, tr_points, curr_lags)
+                print(f'seed: {curr_seed:3d} | #points: {tr_points:3d}| #lags: {curr_lags:3d} | {time() - tt:5.2f}sec')
     print('done', f'{time() - tt:5.2f}sec')

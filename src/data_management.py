@@ -133,7 +133,7 @@ class MealearningDataHandler:
             self.synthetic_sine()
         elif self.settings.dataset == 'synthetic_ar':
             self.synthetic_ar()
-        elif self.settings.dataset == 'air_quality_madrid':
+        elif self.settings.dataset == 'air_quality_eu':
             self.air_quality_eu()
         else:
             raise ValueError('Invalid dataset')

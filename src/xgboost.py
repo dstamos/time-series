@@ -9,7 +9,7 @@ import time
 class Xgboost:
     def __init__(self, settings):
         self.settings = settings
-        self.lags = settings.lags
+        self.lags = settings.curr_lags
 
         self.all_models = None
         self.all_raw_predictions = None
