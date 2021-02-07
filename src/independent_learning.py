@@ -1,88 +1,80 @@
-from numpy import identity as eye
-import pandas as pd
-from src.utilities import labels_to_raw
 import numpy as np
-from src.utilities import handle_data, performance_check
-from numpy.linalg.linalg import pinv
+import pandas as pd
+from numpy.linalg import pinv
+from numpy import identity as eye
+from src.preprocessing import PreProcess
 from time import time
+from src.utilities import normalised_mse
+from sklearn.model_selection import KFold
+
+
+def train_test_itl(data, settings):
+    # Training
+    tt = time()
+    all_performances = []
+    for task_idx in range(len(data['test_tasks_indexes'])):
+        x = data['test_tasks_tr_features'][task_idx]
+        y = data['test_tasks_tr_labels'][task_idx]
+
+        cv_splits = 3
+        if len(y) < cv_splits:
+            # In the case we don't enough enough data for 5-fold cross-validation for training (cold start), just use random data.
+            x = np.random.randn(*np.concatenate([data['test_tasks_test_features'][task_idx] for task_idx in range(len(data['test_tasks_test_features']))]).shape)
+            y = np.random.uniform(0, 1, len(x))
+
+        kf = KFold(n_splits=cv_splits)
+        kf.get_n_splits(x)
+        preprocessing = PreProcess(standard_scaling=True, inside_ball_scaling=False, add_bias=True)
+
+        best_performance = np.Inf
+        best_param = None
+        for regul_param in settings['regul_param_range']:
+            curr_val_performances = []
+            for train_index, test_index in kf.split(x):
+                x_tr, x_val = x.iloc[train_index], x.iloc[test_index]
+                y_tr, y_val = y.iloc[train_index], y.iloc[test_index]
+
+                x_tr, y_tr = preprocessing.transform(x_tr, y_tr, fit=True, multiple_tasks=False)
+                x_val, y_val = preprocessing.transform(x_val, y_val, fit=False, multiple_tasks=False)
+
+                model_itl = ITL(regul_param)
+                model_itl.fit(x_tr, y_tr)
+
+                val_predictions = model_itl.predict(x_val)
+                val_performance = normalised_mse(y_val, val_predictions)
+                curr_val_performances.append(val_performance)
+            average_val_performance = np.mean(curr_val_performances)
+            if average_val_performance < best_performance:
+                best_performance = average_val_performance
+                best_param = regul_param
+
+        # Retrain on full training set
+        x, y = preprocessing.transform(x, y, fit=True, multiple_tasks=False)
+        x_test, y_test = preprocessing.transform(data['test_tasks_test_features'][task_idx], data['test_tasks_test_labels'][task_idx], fit=False, multiple_tasks=False)
+
+        model_itl = ITL(best_param)
+        model_itl.fit(x, y)
+
+        # Testing
+        test_predictions = model_itl.predict(x_test)
+        all_performances.append(normalised_mse(y_test, test_predictions))
+    test_performance = np.mean(all_performances)
+    print(f'{"Independent":12s} | test performance: {test_performance:12.5f} | {time() - tt:6.1f}sec')
+
+    return test_performance
 
 
 class ITL:
-    def __init__(self, settings):
-        self.settings = settings
-        self.lags = settings.curr_lags
+    def __init__(self, regularization_parameter=1e-2):
+        self.regularization_parameter = regularization_parameter
+        self.weight_vector = None
 
-        self.best_weight_vectors = None
-        self.all_predictions = None
-        self.all_raw_predictions = None
-        self.all_test_perf = None
+    def fit(self, features, labels):
+        dims = features.shape[1]
 
-    def fit(self, test_tasks):
-        test_tasks = handle_data(test_tasks, self.lags, self.settings.use_exog)
+        weight_vector = pinv(features.T @ features + self.regularization_parameter * eye(dims)) @ features.T @ labels
+        self.weight_vector = weight_vector.values.ravel()
 
-        best_weight_vectors = [None] * len(test_tasks)
-        all_val_perf = [None] * len(test_tasks)
-        tt = time()
-        for task_idx in range(len(test_tasks)):
-            best_val_performance = np.Inf
-            x_train = test_tasks[task_idx].training.features.values
-            y_train = test_tasks[task_idx].training.labels.values.ravel()
-
-            x_val = test_tasks[task_idx].validation.features.values
-            y_val = test_tasks[task_idx].validation.labels
-
-            if task_idx == 368:
-                k = 1
-
-            dims = x_train.shape[1]
-            # best_weight_vectors[task_idx] = np.zeros(dims)
-
-            xtx = x_train.T @ x_train
-            for regularization_parameter in self.settings.regularization_parameter_range:
-                #####################################################
-                # Optimisation
-                from scipy.linalg import lstsq
-                curr_w = lstsq(xtx + regularization_parameter * eye(dims), x_train.T @ y_train)[0]
-
-                #####################################################
-                # Validation
-                curr_predictions = pd.Series(x_val @ curr_w, index=y_val.index)
-                errors = performance_check(y_val, curr_predictions)
-                val_performance = errors['nmse']
-
-                if val_performance < best_val_performance:
-                    validation_criterion = True
-                else:
-                    validation_criterion = False
-
-                if validation_criterion:
-                    best_val_performance = val_performance
-                    best_weight_vectors[task_idx] = curr_w
-                    all_val_perf[task_idx] = val_performance
-            print(f'ITL | {task_idx:3d} | val performance: {best_val_performance:12.5f} | {time() - tt:5.2f}sec')
-        self.best_weight_vectors = best_weight_vectors
-
-        self._predict(test_tasks)
-
-    def _predict(self, test_tasks):
-        all_predictions = []
-        all_raw_predictions = []
-        all_test_perf = []
-        for task_idx in range(len(test_tasks)):
-            x_test = test_tasks[task_idx].test.features.values
-            y_test = test_tasks[task_idx].test.labels
-
-            try:
-                curr_predictions = pd.Series(x_test @ self.best_weight_vectors[task_idx], index=y_test.index)
-            except Exception as e:
-                raise ValueError(e)
-            errors = performance_check(y_test, curr_predictions)
-            test_perf = errors['nmse']
-            all_test_perf.append(test_perf)
-            all_predictions.append(curr_predictions)
-            all_raw_predictions.append(curr_predictions)
-        self.all_test_perf = all_test_perf
-        self.all_predictions = all_predictions
-        # self.all_raw_predictions = all_raw_predictions
-        self.best_weight_vectors = None
-        print('ITL | test performance: %8.5f' % (np.nanmean(all_test_perf)))
+    def predict(self, features):
+        pred = features @ self.weight_vector
+        return pred
