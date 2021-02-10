@@ -33,27 +33,26 @@ def train_test_arma(data, settings):
         model_itl.fit(x.iloc[x.shape[1]-1:], y.iloc[x.shape[1]-1:])
         # FIXME Remove the above 'pruning'
 
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore")
-            from statsmodels.tsa.arima.model import ARIMA
-
-            # model_arima = ARIMA(endog=y, order=(3, 0, 2), trend='c', enforce_stationarity=False, enforce_invertibility=False)
-            # model_arima = model_arima.fit()
-
-            from statsmodels.tsa.ar_model import AutoReg
-            model_arima = AutoReg(endog=y, lags=3, trend='c')
-            model_arima = model_arima.fit()
-
         np.set_printoptions(suppress=True)
         pd.set_option('display.max_rows', 12)
         pd.set_option('display.max_columns', 5000)
         pd.set_option('display.width', 40000)
 
-        print('custom:\n', model_itl.weight_vector)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            from statsmodels.tsa.arima.model import ARIMA
+            model_arima = ARIMA(endog=y, order=(3, 0, 2), trend='c', enforce_stationarity=False, enforce_invertibility=False)
+            model_arima = model_arima.fit()
+
+            # from statsmodels.tsa.ar_model import AutoReg
+            # model_arima = AutoReg(endog=y, lags=3, trend='c')
+            # model_arima = model_arima.fit()
+
+        print('custom:\n', model_itl.weight_vector_arma)
         print('')
-        print('statsmodels:\n', model_arima.params.to_frame())
-        # print('statsmodels:\n', model_arima.params.to_frame().drop('sigma2'))
+        # print('statsmodels:\n', model_arima.params.to_frame())
+        print('statsmodels:\n', model_arima.params.to_frame().drop('sigma2'))
 
         # Testing
         test_predictions = model_itl.predict(x_test)
