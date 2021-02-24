@@ -24,7 +24,7 @@ def train_test_itl(data, settings):
 
         kf = KFold(n_splits=cv_splits)
         kf.get_n_splits(x)
-        preprocessing = PreProcess(standard_scaling=True, inside_ball_scaling=False, add_bias=True)
+        preprocessing = PreProcess(standard_scaling=False, inside_ball_scaling=False, add_bias=True)
 
         best_performance = np.Inf
         best_param = None
@@ -76,5 +76,5 @@ class ITL:
         self.weight_vector = weight_vector.values.ravel()
 
     def predict(self, features):
-        pred = features @ self.weight_vector
+        pred = (features @ self.weight_vector).to_frame()
         return pred

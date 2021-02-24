@@ -234,5 +234,10 @@ def load_eu_weather_data():
                            '\nfresh_download_raw_data = True \nmerge_raw_data_to_stations = True \nprocess_stations = True')
 
     all_raw_time_series = pickle.load(open(final_dataset_path, "rb"))
-    all_raw_time_series = all_raw_time_series[:20]
+    all_raw_time_series = all_raw_time_series[:300]
+    # for i in range(len(all_raw_time_series)):
+    #     all_raw_time_series[i] = all_raw_time_series[i].iloc[-2000:]
+    #
+    #     # x = np.linspace(0, 8*np.pi, 500)
+    #     # all_raw_time_series[i].iloc[:, 0] = np.sin(x) + 0.05 * np.random.randn(500)
     return all_raw_time_series

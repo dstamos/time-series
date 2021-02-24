@@ -2,7 +2,9 @@ from scipy.linalg import lstsq
 import numpy as np
 from numpy.linalg.linalg import norm
 from src.utilities import multiple_tasks_nmse
+from src.utilities import normalised_mse
 from time import time
+from copy import deepcopy
 from src.preprocessing import PreProcess
 from sklearn.model_selection import KFold
 
@@ -15,10 +17,10 @@ def train_test_meta(data, settings, verbose=True):
     # Preprocess the data
     fine_tuning_test = settings['fine_tune'] is True and np.all([len(y_test_tasks[task_idx]) > 5 for task_idx in range(len(y_test_tasks))])
     if fine_tuning_test:
-        preprocessing = PreProcess(standard_scaling=True, inside_ball_scaling=True, add_bias=True)
+        preprocessing = PreProcess(standard_scaling=False, inside_ball_scaling=False, add_bias=True)
     else:
         # In the case we don't have training data on the test tasks or we just don't want to fine-tune.
-        preprocessing = PreProcess(standard_scaling=False, inside_ball_scaling=True, add_bias=True)
+        preprocessing = PreProcess(standard_scaling=False, inside_ball_scaling=False, add_bias=True)
     tr_tasks_tr_features, tr_tasks_tr_labels = preprocessing.transform(data['tr_tasks_tr_features'], data['tr_tasks_tr_labels'], fit=True, multiple_tasks=True)
 
     # Training
@@ -48,19 +50,21 @@ def train_test_meta(data, settings, verbose=True):
         if val_performance < best_performance:
             best_param = regul_param
             best_performance = val_performance
-            best_model_ltl = model_ltl
+            best_model_ltl = deepcopy(model_ltl)
         if verbose is True:
-            print(f'{"LTL":10s} | param: {regul_param:6e} | val performance: {val_performance:12.5f} | {time() - tt:6.1f}sec')
+            print(f'{"LTL":10s} | param: {regul_param:6e} | val performance: {val_performance:12.5f} | {time() - tt:5.2f}sec')
 
     # Test
     if fine_tuning_test:
         _, _ = preprocessing.transform(x_test_tasks, y_test_tasks, fit=True, multiple_tasks=True)
 
     test_tasks_test_features, test_tasks_test_labels = preprocessing.transform(data['test_tasks_test_features'], data['test_tasks_test_labels'], fit=False, multiple_tasks=True)
+
     if fine_tuning_test:
         all_weight_vectors = best_model_ltl.fine_tune(x_test_tasks, y_test_tasks, settings['regul_param_range'], preprocessing)
         test_task_predictions = best_model_ltl.predict(test_tasks_test_features, all_weight_vectors)
     else:
+        all_weight_vectors = None
         test_task_predictions = best_model_ltl.predict(test_tasks_test_features)
     test_performance = multiple_tasks_nmse(test_tasks_test_labels, test_task_predictions, error_progression=True)
     print(f'{"LTL":12s} | test performance: {test_performance[-1]:12.5f} | {time() - tt:5.2f}sec')
@@ -90,7 +94,7 @@ class BiasLTL:
 
         all_metaparameters = []
         for task_idx in range(len(all_features)):
-            mean_vector = self.solve_wrt_metaparameter(mean_vector, all_features[task_idx].values, all_labels[task_idx].values.ravel(), curr_iteration=task_idx, inner_iter_cap=3)
+            mean_vector = self.solve_wrt_metaparameter(mean_vector, all_features[task_idx], all_labels[task_idx], curr_iteration=task_idx, inner_iter_cap=10)
             if all_metaparameters:
                 mean_vector = (task_idx * all_metaparameters[-1] + mean_vector) / (task_idx + 1)
             all_metaparameters.append(mean_vector)
@@ -114,7 +118,7 @@ class BiasLTL:
             # In this case for each task, split the given data and do cross validation. The retrain on all and return the corresponding weight vectors.
             best_regul_params = [None] * len(all_features)
             for task_idx in range(len(all_features)):
-                kf = KFold(n_splits=3)
+                kf = KFold(n_splits=2)
                 kf.get_n_splits(all_features[task_idx])
 
                 best_performance = np.Inf
@@ -127,12 +131,13 @@ class BiasLTL:
                         x_tr, y_tr = preprocessing.transform(x_tr, y_tr, fit=True, multiple_tasks=False)
                         x_val, y_val = preprocessing.transform(x_val, y_val, fit=False, multiple_tasks=False)
 
-                        weight_vector = self.solve_wrt_w(self.metaparameter_, x_tr, y_tr.values.ravel(), curr_regul_param)
+                        weight_vector = self.solve_wrt_w(self.metaparameter_, x_tr, y_tr, curr_regul_param)
 
-                        val_predictions = x_val @ weight_vector
-                        val_performance = multiple_tasks_nmse([y_val], [[val_predictions]])
+                        val_predictions = (x_val @ weight_vector).to_frame()
+
+                        val_performance = normalised_mse(y_val, val_predictions)
                         curr_val_performances.append(val_performance)
-                    average_val_performance = np.min(curr_val_performances)
+                    average_val_performance = np.nanmean(curr_val_performances)
                     if average_val_performance < best_performance:
                         best_performance = average_val_performance
                         best_regul_params[task_idx] = curr_regul_param
@@ -143,7 +148,7 @@ class BiasLTL:
         for metaparameter in self.all_metaparameters_:
             current_weight_vectors = []
             for task_idx in range(len(all_features)):
-                weight_vector = self.solve_wrt_w(metaparameter, all_features[task_idx], all_labels[task_idx].values.ravel(), best_regul_params[task_idx])
+                weight_vector = self.solve_wrt_w(metaparameter, all_features[task_idx], all_labels[task_idx], best_regul_params[task_idx])
                 current_weight_vectors.append(weight_vector)
             all_weight_vectors.append(current_weight_vectors)
 
@@ -158,12 +163,14 @@ class BiasLTL:
         for all_current_vectors in weight_vectors:
             curr_predictions = []
             for task_idx in range(len(all_features)):
-                pred = all_features[task_idx] @ all_current_vectors[task_idx]
+                pred = (all_features[task_idx] @ all_current_vectors[task_idx]).to_frame()
                 curr_predictions.append(pred)
             all_predictions.append(curr_predictions)
         return all_predictions
 
     def solve_wrt_metaparameter(self, h, x, y, curr_iteration=0, inner_iter_cap=10):
+        x = x.values
+        y = y.values.ravel()
         step_size_bit = 1e+3
         n = len(y)
         c_n_hat = x.T @ x / n + self.regularization_parameter * np.eye(x.shape[1])
@@ -186,8 +193,13 @@ class BiasLTL:
 
     @staticmethod
     def solve_wrt_w(h, x, y, regul_param):
+        x = x.values
+        y = y.values.ravel()
         n = len(y)
         dims = x.shape[1]
 
-        w = lstsq(x.T @ x / n + regul_param * np.eye(dims), (x.T @ y / n + regul_param * h))[0]
+        try:
+            w = lstsq(x.T @ x / n + regul_param * np.eye(dims), (x.T @ y / n + regul_param * h))[0]
+        except:
+            w = np.zeros(dims)
         return w

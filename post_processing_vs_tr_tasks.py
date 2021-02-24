@@ -1,13 +1,13 @@
-from src.data_management import Settings, MealearningDataHandler
-from src.training import training
 from time import time
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 import pandas as pd
 import os
 import matplotlib
 import matplotlib.ticker as mtick
+
 
 font = {'size': 48}
 matplotlib.rc('font', **font)
@@ -17,22 +17,30 @@ matplotlib.rc('font', **font)
 # tr_points = 72
 # lags = 6
 
-seed_range = [999]
-tr_points = 24 * 28
-lags = 24
+seed_range = [9999]
+tr_pct = 0.2
 
 all_seeds_ltl = []
 all_seeds_itl = []
 for seed in seed_range:
-    print(seed, tr_points)
-    import pickle
-    filename = 'seed_' + str(seed) + '_n_points_' + str(tr_points) + '_lags_' + str(lags)
-    full_path = os.getcwd() + '/results/madrid/' + filename
+    foldername = './results-eu/'
+    filename = 'seed_' + str(seed) + '-tr_pct_{:0.4f}'.format(tr_pct)
+    full_path = foldername + filename
     try:
-        splits, data_settings, model_itl, model_ltl = pickle.load(open(full_path + '.pckl', "rb"))
+        results = pickle.load(open(full_path + '.pckl', "rb"))
+        test_performance_naive = results['test_performance_naive']
+        test_performance_single_task = results['test_performance_single_task']
+        test_performance_itl = results['test_performance_itl']
+        test_performance_meta = results['test_performance_meta']
     except:
         print('broken')
         continue
+
+    fig, ax = plt.subplots(figsize=(1920 / 100, 1080 / 100), facecolor='white', dpi=100, nrows=1, ncols=1)
+    plt.plot(np.ones(len(test_performance_meta)) * [test_performance_naive], 'tab:gray', linewidth=2)
+    plt.plot(np.ones(len(test_performance_meta)) * [test_performance_itl], 'tab:red', linewidth=2)
+    plt.plot(test_performance_meta, 'tab:blue', linewidth=2)
+    plt.pause(0.1)
 
     training_tasks = splits['training']
     ltl_errors = model_ltl.test_per_per_training_task

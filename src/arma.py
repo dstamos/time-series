@@ -29,8 +29,8 @@ def train_test_arma(data, settings):
 
         pd.options.display.float_format = '{:10.6f}'.format
 
-        model_itl = ARMA()
-        model_itl.fit(x.iloc[x.shape[1]-1:], y.iloc[x.shape[1]-1:])
+        model_arma = ARMA()
+        model_arma.fit(x.iloc[x.shape[1]-1:], y.iloc[x.shape[1]-1:])
         # FIXME Remove the above 'pruning'
 
         np.set_printoptions(suppress=True)
@@ -41,21 +41,27 @@ def train_test_arma(data, settings):
         import warnings
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
-            from statsmodels.tsa.arima.model import ARIMA
-            model_arima = ARIMA(endog=y, order=(3, 0, 2), trend='c', enforce_stationarity=False, enforce_invertibility=False)
-            model_arima = model_arima.fit()
+            # from statsmodels.tsa.arima.model import ARIMA
+            # model_arima = ARIMA(endog=y, order=(6, 0, 12), trend='c', enforce_stationarity=False, enforce_invertibility=False)
+            # model_arima = model_arima.fit()
+            # print('statsmodels:\n', model_arima.params.to_frame().drop('sigma2'))
+            #
+            # mod = ARIMA(y, order=(6, 0, 12))
+            # res = mod.filter(model_arima.params)
+            # test_predictions = res.forecast(steps=len(x_test) + 1).to_frame()
+            # test_predictions.columns = ['labels']
+            # test_predictions = test_predictions.loc[y_test.index]
 
             # from statsmodels.tsa.ar_model import AutoReg
             # model_arima = AutoReg(endog=y, lags=3, trend='c')
             # model_arima = model_arima.fit()
+            # print('statsmodels:\n', model_arima.params.to_frame())
 
-        print('custom:\n', model_itl.weight_vector_arma)
-        print('')
-        # print('statsmodels:\n', model_arima.params.to_frame())
-        print('statsmodels:\n', model_arima.params.to_frame().drop('sigma2'))
+        # print('')
+        # print('custom:\n', model_arma.weight_vector_arma)
 
         # Testing
-        test_predictions = model_itl.predict(x_test)
+        test_predictions = model_arma.predict(x_test)
         all_performances.append(normalised_mse(y_test, test_predictions))
     test_performance = np.mean(all_performances)
     print(f'{"ARMA":12s} | test performance: {test_performance:12.5f} | {time() - tt:6.1f}sec')
@@ -65,8 +71,9 @@ def train_test_arma(data, settings):
 
 class ARMA:
     def __init__(self):
-        self.max_lag_ma = 0
-        self.weight_vector = None
+        self.max_lag_ma = 12
+        self.weight_vector_arma = None
+        self.weight_vector_ar = None
 
     def fit(self, features, labels):
         w_ar = lstsq(features.T @ features, features.T @ labels)[0].ravel()
@@ -77,8 +84,17 @@ class ARMA:
         tr_residuals = labels - y_tr_pred_ar
         tr_residuals = tr_residuals
 
-        x_tr_ma, y_tr_ma, _ = get_features_labels_from_timeseries([tr_residuals], self.max_lag_ma, diff_order=0, shift=0)
-        x_tr_ma, y_tr_ma = x_tr_ma[0], y_tr_ma[0]
+        # import matplotlib.pyplot as plt
+        # plt.plot(labels)
+        # plt.plot(y_tr_pred_ar)
+        # plt.pause(0.1)
+        #
+        # plt.plot(tr_residuals)
+        # plt.pause(0.1)
+
+        x_tr_ma, _, _ = get_features_labels_from_timeseries([tr_residuals], self.max_lag_ma, diff_order=0, shift=0)
+        x_tr_ma = x_tr_ma[0]
+        # x_tr_ma = x_tr_ma.shift() ######################################################
 
         if self.max_lag_ma != 0:
             # Merge MA and AR features. Fill in MA features with 0 backwards.
@@ -86,41 +102,50 @@ class ARMA:
         else:
             features_merged = features
 
-        w_ar = lstsq(features_merged.T @ features_merged, features_merged.T @ labels)[0].ravel()
+        w_arma = lstsq(features_merged.T @ features_merged, features_merged.T @ labels)[0].ravel()
 
-        w_ar = pd.DataFrame(w_ar, index=features_merged.columns)
+        w_arma = pd.DataFrame(w_arma, index=features_merged.columns)
 
-        # x_tr_ma = x_tr_ma.iloc[x_tr_ma.shape[1]-1:]
-        # y_tr_ma = y_tr_ma.iloc[x_tr_ma.shape[1]-1:]
+        # import matplotlib.pyplot as plt
+        # plt.plot(labels)
+        # plt.plot((features_merged @ w_arma))
+        # plt.pause(0.1)
 
-        # x_tr_ma = np.r_[np.zeros((self.max_lag_ma, x_tr_ma.shape[1])), x_tr_ma]
-        # y_tr_ma = np.r_[np.zeros(self.max_lag_ma), y_tr_ma.values.ravel()]
-
-        # w_ma = lstsq(x_tr_ma.T @ x_tr_ma, x_tr_ma.T @ y_tr_ma)[0].ravel()
-
-        self.weight_vector = w_ar
+        self.weight_vector_arma = w_arma
+        self.weight_vector_ar = w_ar
 
     def predict(self, features):
-        y_pred_ar = (features @ self.weight_vector).to_frame()
+        y_pred_ar = (features @ self.weight_vector_ar).to_frame()
         y_pred_ar.columns = ['labels']
 
         # MA pred
         labels = features['lag_0'].shift(-1).to_frame()
         labels.columns = ['labels']
         y_residuals = labels - y_pred_ar
-        # x_residuals_ma, _, _ = get_features_labels_from_timeseries([y_residuals], self.max_lag_ma)
 
-        x_residuals_ma, _, _ = get_features_labels_from_timeseries([y_residuals], self.max_lag_ma, diff_order=None, shift=0)
+        # import matplotlib.pyplot as plt
+        # plt.plot(labels)
+        # plt.plot(y_pred_ar)
+        # plt.pause(0.1)
+        #
+        # plt.plot(y_residuals)
+        # plt.pause(0.1)
+
+        x_residuals_ma, _, _ = get_features_labels_from_timeseries([y_residuals], self.max_lag_ma, diff_order=0, shift=0)
         x_residuals_ma = x_residuals_ma[0]
-        x_residuals_ma = pd.DataFrame(np.r_[np.zeros((self.max_lag_ma, x_residuals_ma.shape[1])), x_residuals_ma], index=features.index)
+        # x_residuals_ma = x_residuals_ma.shift() ######################################################
 
-        y_pred_ma = (x_residuals_ma @ self.weight).to_frame()
-
-        # y_pred_ma = (x_residuals_ma[0] @ self.weight_vector_ma).to_frame()
-        y_pred_ma.columns = ['labels']
-
-        if self.max_lag_ma:
-            pred = y_pred_ar
+        if self.max_lag_ma != 0:
+            # Merge MA and AR features. Fill in MA features with 0 backwards.
+            features_merged = pd.concat([features, x_residuals_ma], axis=1).replace(np.nan, 0)
         else:
-            pred = y_pred_ar + y_pred_ma
-        return pred
+            features_merged = features
+
+        y_pred_arma = features_merged @ self.weight_vector_arma
+        y_pred_arma.columns = ['labels']
+
+        # plt.plot(labels)
+        # plt.plot(y_pred_arma)
+        # plt.pause(0.1)
+
+        return y_pred_arma

@@ -1,5 +1,6 @@
 from sklearn.metrics import mean_squared_error
 import numpy as np
+import pandas as pd
 import pickle
 import os
 
@@ -52,6 +53,15 @@ def mae_clip(labels, predictions):
 
 
 def normalised_mse(labels, predictions):
+    assert(len(labels) == len(predictions))
+    nan_points_idx_a = labels.index[pd.isnull(labels).any(1).to_numpy().nonzero()[0]]
+    nan_labels_idx_b = predictions.index[pd.isnull(predictions).any(1).to_numpy().nonzero()[0]]
+    idx_to_drop = np.concatenate((nan_points_idx_a, nan_labels_idx_b))
+
+    if len(idx_to_drop) > 0:
+        labels = labels.drop(idx_to_drop)
+        predictions = predictions.drop(idx_to_drop)
+
     mse = mean_squared_error(labels, predictions)
     nmse = mse / mean_squared_error(labels.values.ravel(), np.mean(labels.values.ravel()) * np.ones(len(labels)))
     return nmse
